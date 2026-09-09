@@ -1,49 +1,32 @@
 const express = require('express');
 const cors = require('cors');
 
-const { criarBancoMock } = require("./src/data/seed");
-const { recalcularPrioridades } = require("./src/services/priorityEngine");
-
 const app = express();
 
 // Libera CORS de forma global sem travar com erro 500
 app.use(cors());
-
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-// "Banco de dados" em memória — recriado a cada boot do servidor.
-const db = criarBancoMock();
-recalcularPrioridades(db);
-
 function healthCheck(req, res) {
-  res.json({ status: "ok", servico: "4T Smart Warehouse API", timestamp: new Date().toISOString() });
+  res.json({ 
+    status: "ok", 
+    servico: "4T Smart Warehouse API", 
+    timestamp: new Date().toISOString() 
+  });
 }
 
-// Endpoint usado por serviços de monitoramento de plataformas como o Render.
+// Endpoints de Health Check
 app.get("/health", healthCheck);
-// Mantido por compatibilidade com o restante da aplicação e uso manual/curl.
 app.get("/api/health", healthCheck);
 
-app.use("/api/dashboard", require("./src/routes/dashboard")(db));
-app.use("/api/armazem", require("./src/routes/warehouse")(db));
-app.use("/api/tarefas", require("./src/routes/tasks")(db));
-app.use("/api/empilhadeiras", require("./src/routes/forklifts")(db));
-app.use("/api/roteirizacao", require("./src/routes/routing")(db));
-app.use("/api/slotting", require("./src/routes/slotting")(db));
-app.use("/api/operador", require("./src/routes/operator")(db));
-app.use("/api/lotes", require("./src/routes/lots")(db));
+// Rotas integradas ao PostgreSQL / Supabase via Prisma
+app.use("/api/lotes", require("./src/routes/lots"));
+app.use("/api/tarefas", require("./src/routes/tasks"));
+app.use("/api/empilhadeiras", require("./src/routes/forklifts"));
 
-// Reset do cenário de demonstração (útil durante testes/apresentações)
-app.post("/api/reset", (req, res) => {
-  const novoDb = criarBancoMock();
-  Object.keys(db).forEach((k) => delete db[k]);
-  Object.assign(db, novoDb);
-  recalcularPrioridades(db);
-  res.json({ mensagem: "Cenário de demonstração reiniciado com sucesso." });
-});
-
+// Rota padrão para caminhos não encontrados (404)
 app.use((req, res) => {
   res.status(404).json({ erro: "Rota não encontrada" });
 });
