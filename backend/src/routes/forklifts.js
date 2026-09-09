@@ -4,35 +4,49 @@ const prisma = require('../data/db');
 
 router.get('/', async (req, res) => {
   try {
-    const forklifts = await prisma.forklift.findMany();
+    const empilhadeiras = await prisma.forklift.findMany();
 
-    // Se o banco tiver dados, retorna os dados reais do Supabase
-    if (forklifts && forklifts.length > 0) {
-      return res.json(forklifts);
+    if (empilhadeiras && empilhadeiras.length > 0) {
+      // Garante que todo objeto vindo do Supabase tenha os números e datas para o .toLocaleString()
+      const formatadas = empilhadeiras.map(e => ({
+        ...e,
+        bateriaPct: e.bateriaPct ?? 100,
+        horasUso: e.horasUso ?? 0,
+        capacidadeKg: e.capacidadeKg ?? 2500,
+        criadoEm: e.criadoEm || new Date().toISOString()
+      }));
+      return res.json(formatadas);
     }
 
-    // Fallback com estrutura esperada pelo frontend quando o banco estiver vazio
+    // Fallback completo caso a tabela esteja vazia
     res.json([
       {
         id: "EMP-01",
         codigo: "EMP-01",
         nome: "Empilhadeira 01",
+        modelo: "Toyota 8FGU25",
         operador: "Operador 01",
-        status: "disponivel",
-        bateriaPct: 100
+        status: "DISPONIVEL",
+        bateriaPct: 100,
+        horasUso: 0,
+        capacidadeKg: 2500,
+        criadoEm: new Date().toISOString()
       }
     ]);
   } catch (error) {
     console.error('❌ Erro ao buscar empilhadeiras:', error);
-    // Em caso de erro, retorna a estrutura zerada para não travar o frontend
     res.json([
       {
         id: "EMP-01",
         codigo: "EMP-01",
         nome: "Empilhadeira 01",
+        modelo: "Toyota 8FGU25",
         operador: "Operador 01",
-        status: "disponivel",
-        bateriaPct: 100
+        status: "DISPONIVEL",
+        bateriaPct: 100,
+        horasUso: 0,
+        capacidadeKg: 2500,
+        criadoEm: new Date().toISOString()
       }
     ]);
   }
