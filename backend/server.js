@@ -49,8 +49,8 @@ app.use((req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n🚛  4T Smart Warehouse API rodando na porta ${PORT}`);
-  console.log(`    Health check: /health e /api/health`);
-  console.log(`    CORS habilitado para requisições externas.`);
+  console.log(`\n🚛 4T Smart Warehouse API rodando na porta ${PORT}`);
+  console.log(` Health check: /health e /api/health`);
+  console.log(` CORS habilitado para requisições externas.`);
   console.log("");
 });
