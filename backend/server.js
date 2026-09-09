@@ -6,19 +6,14 @@ const { recalcularPrioridades } = require("./src/services/priorityEngine");
 
 const app = express();
 
-// Libera CORS para o frontend (Vercel) sem estourar Erro 500
+// Libera CORS de forma global sem travar com erro 500
 app.use(cors());
 
 app.use(express.json());
 
 const PORT = process.env.PORT || 3001;
 
-// =========================================================
-// MANTENHA TODO O RESTO DO SEU CÓDIGO ABAIXO (LINHAS 48 A 95)
-// =========================================================
-
 // "Banco de dados" em memória — recriado a cada boot do servidor.
-// Para persistência real, ver README > "Evoluindo para banco real".
 const db = criarBancoMock();
 recalcularPrioridades(db);
 
@@ -56,10 +51,6 @@ app.use((req, res) => {
 app.listen(PORT, () => {
   console.log(`\n🚛  4T Smart Warehouse API rodando na porta ${PORT}`);
   console.log(`    Health check: /health e /api/health`);
-  if (origensProducao.length > 0) {
-    console.log(`    Origens de produção liberadas no CORS: ${origensProducao.join(", ")}`);
-  } else {
-    console.log(`    Nenhuma FRONTEND_URL configurada — apenas dev local (5173) liberado no CORS.`);
-  }
+  console.log(`    CORS habilitado para requisições externas.`);
   console.log("");
 });
