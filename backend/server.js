@@ -20,15 +20,27 @@ function healthCheck(req, res) {
 app.get("/health", healthCheck);
 app.get("/api/health", healthCheck);
 
-// Estrutura de fallback para rotas que ainda esperam o objeto db
+// Estrutura mínima funcional para destravar as telas Mapa e Monitor do Operador
 const dbMockVazio = {
-  galpoes: [],
+  galpoes: [
+    {
+      id: "G1",
+      nome: "Galpão Principal",
+      larguraM: 50,
+      comprimentoM: 100,
+      ruas: [],
+      posicoes: []
+    }
+  ],
   posicoes: [],
   lotes: [],
   bigBags: [],
   empilhadeiras: [],
   caminhoes: [],
   tarefas: [],
+  operadores: [
+    { id: "op1", nome: "Operador Padrão", empilhadeiraId: null }
+  ],
   metricasTurno: {
     inicioTurno: new Date().toISOString(),
     tarefasConcluidas: 0,
@@ -37,7 +49,6 @@ const dbMockVazio = {
     indiceMovimentacaoIndiretaPct: 0
   }
 };
-
 // Rotas integradas ao Prisma / Supabase
 app.use("/api/lotes", require("./src/routes/lots"));
 app.use("/api/tarefas", require("./src/routes/tasks"));
