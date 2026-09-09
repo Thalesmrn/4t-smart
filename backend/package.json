@@ -1,14 +1,18 @@
 {
   "name": "4t-smart-warehouse-backend",
   "version": "1.0.0",
-  "description": "API do 4T Smart Warehouse — logística interna inteligente para armazéns de café",
+  "description": "API do 4T Smart Warehouse",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js"
   },
   "dependencies": {
+    "@prisma/client": "^5.22.0",
     "cors": "^2.8.6",
     "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "prisma": "^5.22.0"
   }
 }

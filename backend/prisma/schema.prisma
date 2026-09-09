@@ -1,0 +1,37 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Lote {
+  id         String   @id @default(uuid())
+  codigo     String   @unique
+  produto    String
+  quantidade Int
+  status     String   @default("DISPONIVEL")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Tarefa {
+  id         String   @id @default(uuid())
+  descricao  String
+  tipo       String
+  prioridade Int
+  status     String   @default("PENDENTE")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Empilhadeira {
+  id            String   @id @default(uuid())
+  identificador String   @unique
+  operador      String?
+  status        String   @default("DISPONIVEL")
+  bateria       Int      @default(100)
+}
