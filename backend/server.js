@@ -1,3 +1,14 @@
+const express = require('express');
+const cors = require('cors'); // 1. Adicione esta linha
+
+const app = express();
+
+// 2. Adicione esta linha ANTES das rotas
+app.use(cors());
+
+app.use(express.json());
+
+// ... restante do seu código e das rotas
 const express = require("express");
 const cors = require("cors");
 const { criarBancoMock } = require("./src/data/seed");
