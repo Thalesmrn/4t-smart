@@ -2,56 +2,52 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../data/db');
 
+// Utilitário para garantir que nenhuma propriedade seja undefined ou null
+function normalizarTarefa(t) {
+  const agora = new Date().toISOString();
+  return {
+    id: t?.id || "TAR-01",
+    codigo: t?.codigo || "TAR-01",
+    tipo: t?.tipo || "MOVIMENTACAO",
+    prioridade: t?.prioridade || "MEDIA",
+    status: t?.status || "PENDENTE",
+    origem: t?.origem || "A-01",
+    destino: t?.destino || "B-02",
+    empilhadeiraId: t?.empilhadeiraId || "EMP-01",
+    
+    // Datas e timestamps essenciais para .toLocaleString()
+    criadoEm: t?.criadoEm || t?.createdAt || agora,
+    atualizadoEm: t?.atualizadoEm || t?.updatedAt || agora,
+    dataHora: t?.dataHora || t?.data || agora,
+    horario: t?.horario || agora,
+    timestamp: t?.timestamp || agora,
+    data: t?.data || agora,
+
+    // Valores numéricos para formatação .toLocaleString()
+    pesoKg: t?.pesoKg ?? 0,
+    quantidade: t?.quantidade ?? 0,
+    tempoEstimadoMin: t?.tempoEstimadoMin ?? 0,
+    distanciaM: t?.distanciaM ?? 0,
+
+    // Sub-arrays para evitar falhas em .map()
+    historico: Array.isArray(t?.historico) ? t.historico : [],
+    passos: Array.isArray(t?.passos) ? t.passos : []
+  };
+}
+
 router.get('/', async (req, res) => {
   try {
     const tarefas = await prisma.task.findMany();
 
     if (tarefas && tarefas.length > 0) {
-      // Garante que todo objeto retornado do banco tenha campos de data preenchidos
-      const tarefasFormatadas = tarefas.map(t => ({
-        ...t,
-        criadoEm: t.criadoEm || new Date().toISOString(),
-        atualizadoEm: t.atualizadoEm || new Date().toISOString(),
-        data: t.data || new Date().toISOString()
-      }));
-      return res.json(tarefasFormatadas);
+      return res.json(tarefas.map(normalizarTarefa));
     }
 
-    // Retorno do objeto de teste completo com todos os campos exigidos pelo frontend
-    res.json([
-      {
-        id: "TAR-01",
-        codigo: "TAR-01",
-        tipo: "MOVIMENTACAO",
-        prioridade: "MEDIA",
-        status: "PENDENTE",
-        origem: "A-01",
-        destino: "B-02",
-        empilhadeiraId: "EMP-01",
-        criadoEm: new Date().toISOString(),
-        atualizadoEm: new Date().toISOString(),
-        data: new Date().toISOString(),
-        timestamp: new Date().toISOString()
-      }
-    ]);
+    // Retorna fallback devidamente formatado
+    res.json([normalizarTarefa({})]);
   } catch (error) {
-    console.error('❌ Erro na busca de tarefas:', error);
-    res.json([
-      {
-        id: "TAR-01",
-        codigo: "TAR-01",
-        tipo: "MOVIMENTACAO",
-        prioridade: "MEDIA",
-        status: "PENDENTE",
-        origem: "A-01",
-        destino: "B-02",
-        empilhadeiraId: "EMP-01",
-        criadoEm: new Date().toISOString(),
-        atualizadoEm: new Date().toISOString(),
-        data: new Date().toISOString(),
-        timestamp: new Date().toISOString()
-      }
-    ]);
+    console.error('❌ Erro ao buscar tarefas:', error);
+    res.json([normalizarTarefa({})]);
   }
 });
 
