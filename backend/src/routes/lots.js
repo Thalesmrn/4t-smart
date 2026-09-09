@@ -1,91 +1,90 @@
-const express = require("express");
+const express = require('express');
+const router = express.Router();
+const prisma = require('../data/db');
 
-function proximoIdLote(lotes) {
-  const numeros = lotes.map((l) => parseInt(l.id.split("-")[1], 10)).filter((n) => !isNaN(n));
-  const proximo = numeros.length > 0 ? Math.max(...numeros) + 1 : 1;
-  return `LOTE-${String(proximo).padStart(3, "0")}`;
-}
+// Listar todos os lotes
+router.get('/', async (req, res) => {
+  try {
+    const lotes = await prisma.lote.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(lotes);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao buscar lotes no banco de dados.' });
+  }
+});
 
-function proximoIdTarefa(tarefas) {
-  const numeros = tarefas.map((t) => parseInt(t.id.split("-")[1], 10)).filter((n) => !isNaN(n));
-  const proximo = numeros.length > 0 ? Math.max(...numeros) + 1 : 1;
-  return `TSK-${String(proximo).padStart(3, "0")}`;
-}
+// Buscar lote por ID ou Código
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const lote = await prisma.lote.findFirst({
+      where: {
+        OR: [{ id: id }, { codigo: id }]
+      }
+    });
 
-module.exports = function (db) {
-  const router = express.Router();
-
-  router.get("/", (req, res) => {
-    res.json(db.lotes);
-  });
-
-  router.get("/:id", (req, res) => {
-    const lote = db.lotes.find((l) => l.id === req.params.id);
-    if (!lote) return res.status(404).json({ erro: "Lote não encontrado" });
-    const bigBags = db.bigBags.filter((b) => b.loteId === lote.id);
-    res.json({ ...lote, bigBags });
-  });
-
-  // Cadastra um novo lote de café. Entra sempre como "aguardando_descarga" —
-  // ainda não tem big bags/posições associadas, pois representa um lote que
-  // vai ser fisicamente recebido no armazém (consistente com o fluxo de
-  // tarefas de recebimento já existente).
-  router.post("/", (req, res) => {
-    const { produto, qualidade, proprietario, sacas } = req.body || {};
-    if (!produto || !proprietario) {
-      return res.status(400).json({ erro: "Informe ao menos produto e proprietário." });
+    if (!lote) {
+      return res.status(404).json({ error: 'Lote não encontrado.' });
     }
 
-    const novoLote = {
-      id: proximoIdLote(db.lotes),
-      produto: produto.trim(),
-      qualidade: (qualidade || "A classificar").trim(),
-      proprietario: proprietario.trim(),
-      sacas: Number(sacas) > 0 ? Number(sacas) : 0,
-      status: "aguardando_descarga",
-    };
-    db.lotes.push(novoLote);
+    res.json(lote);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao buscar lote.' });
+  }
+});
+
+// Criar um novo lote
+router.post('/', async (req, res) => {
+  try {
+    const { codigo, produto, quantidade, status } = req.body;
+
+    const novoLote = await prisma.lote.create({
+      data: {
+        codigo,
+        produto,
+        quantidade: parseInt(quantidade, 10),
+        status: status || 'DISPONIVEL'
+      }
+    });
+
     res.status(201).json(novoLote);
-  });
+  } catch (error) {
+    res.status(400).json({ error: 'Erro ao criar lote. Verifique se o código já existe.' });
+  }
+});
 
-  // Gera a tarefa de recebimento para um lote "aguardando_descarga". A tarefa
-  // ainda não tem destino/posição definida — isso só é decidido pelo slotting
-  // engine no momento em que a tarefa for concluída (ver taskService.js).
-  router.post("/:id/registrar-recebimento", (req, res) => {
-    const lote = db.lotes.find((l) => l.id === req.params.id);
-    if (!lote) return res.status(404).json({ erro: "Lote não encontrado" });
+// Atualizar um lote
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { codigo, produto, quantidade, status } = req.body;
 
-    if (lote.status !== "aguardando_descarga") {
-      return res.status(400).json({ erro: "Este lote não está aguardando descarga." });
-    }
+    const loteAtualizado = await prisma.lote.update({
+      where: { id },
+      data: {
+        codigo,
+        produto,
+        quantidade: quantidade ? parseInt(quantidade, 10) : undefined,
+        status
+      }
+    });
 
-    const jaExiste = db.tarefas.some(
-      (t) => t.loteId === lote.id && t.tipo === "recebimento" && t.status !== "concluida"
-    );
-    if (jaExiste) {
-      return res.status(400).json({ erro: "Já existe uma tarefa de recebimento pendente para este lote." });
-    }
+    res.json(loteAtualizado);
+  } catch (error) {
+    res.status(400).json({ error: 'Erro ao atualizar lote.' });
+  }
+});
 
-    const novaTarefa = {
-      id: proximoIdTarefa(db.tarefas),
-      tipo: "recebimento",
-      descricao: `Receber lote ${lote.id} (${lote.produto}) — ${lote.sacas || "?"} sacas, proprietário ${lote.proprietario}`,
-      bigBagId: null,
-      loteId: lote.id,
-      origemId: "DOCA-RECEBIMENTO",
-      destinoId: null,
-      prioridadeScore: 0,
-      prioridadeExplicacao: "",
-      empilhadeiraId: null,
-      status: "pendente",
-      criadoEm: new Date().toISOString(),
-      prazoLimite: null,
-      urgente: false,
-    };
+// Excluir um lote
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.lote.delete({ where: { id } });
+    res.json({ message: 'Lote removido com sucesso.' });
+  } catch (error) {
+    res.status(400).json({ error: 'Erro ao remover lote.' });
+  }
+});
 
-    db.tarefas.push(novaTarefa);
-    res.status(201).json(novaTarefa);
-  });
-
-  return router;
-};
+module.exports = router;

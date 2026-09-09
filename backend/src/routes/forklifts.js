@@ -1,65 +1,88 @@
-const express = require("express");
+const express = require('express');
+const router = express.Router();
+const prisma = require('../data/db');
 
-function proximoIdEmpilhadeira(empilhadeiras) {
-  const numeros = empilhadeiras
-    .map((e) => parseInt(e.id.split("-")[1], 10))
-    .filter((n) => !isNaN(n));
-  const proximo = numeros.length > 0 ? Math.max(...numeros) + 1 : 1;
-  return `EMP-${String(proximo).padStart(2, "0")}`;
-}
+// Listar todas as empilhadeiras
+router.get('/', async (req, res) => {
+  try {
+    const empilhadeiras = await prisma.empilhadeira.findMany();
+    res.json(empilhadeiras);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao buscar empilhadeiras no banco de dados.' });
+  }
+});
 
-module.exports = function (db) {
-  const router = express.Router();
-
-  router.get("/", (req, res) => {
-    const resultado = db.empilhadeiras.map((emp) => {
-      const tarefaAtual = db.tarefas.find(
-        (t) => t.empilhadeiraId === emp.id && (t.status === "atribuida" || t.status === "em_execucao")
-      );
-      return { ...emp, tarefaAtual: tarefaAtual || null };
+// Buscar empilhadeira por ID ou Identificador
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const empilhadeira = await prisma.empilhadeira.findFirst({
+      where: {
+        OR: [{ id: id }, { identificador: id }]
+      }
     });
-    res.json(resultado);
-  });
 
-  // Cadastra uma nova empilhadeira na frota. Entra sempre como "disponível",
-  // posicionada na doca de recebimento por padrão, pronta para receber tarefas.
-  router.post("/", (req, res) => {
-    const { nome, operador, capacidadeKg } = req.body || {};
-    if (!nome || !operador) {
-      return res.status(400).json({ erro: "Informe ao menos nome e operador." });
+    if (!empilhadeira) {
+      return res.status(404).json({ error: 'Empilhadeira não encontrada.' });
     }
 
-    const nova = {
-      id: proximoIdEmpilhadeira(db.empilhadeiras),
-      nome: nome.trim(),
-      operador: operador.trim(),
-      status: "disponivel",
-      posicaoAtualId: "DOCA-RECEBIMENTO",
-      capacidadeKg: Number(capacidadeKg) > 0 ? Number(capacidadeKg) : 2500,
-      distanciaPercorridaHojeM: 0,
-    };
-    db.empilhadeiras.push(nova);
-    res.status(201).json(nova);
-  });
+    res.json(empilhadeira);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao buscar empilhadeira.' });
+  }
+});
 
-  router.get("/:id", (req, res) => {
-    const emp = db.empilhadeiras.find((e) => e.id === req.params.id);
-    if (!emp) return res.status(404).json({ erro: "Empilhadeira não encontrada" });
-    const tarefas = db.tarefas.filter((t) => t.empilhadeiraId === emp.id);
-    res.json({ ...emp, tarefas });
-  });
+// Criar nova empilhadeira
+router.post('/', async (req, res) => {
+  try {
+    const { identificador, operador, status, bateria } = req.body;
 
-  router.post("/:id/status", (req, res) => {
-    const { status } = req.body;
-    const validos = ["disponivel", "em_tarefa", "manutencao"];
-    if (!validos.includes(status)) return res.status(400).json({ erro: "Status inválido" });
+    const novaEmpilhadeira = await prisma.empilhadeira.create({
+      data: {
+        identificador,
+        operador: operador || null,
+        status: status || 'DISPONIVEL',
+        bateria: bateria !== undefined ? parseInt(bateria, 10) : 100
+      }
+    });
 
-    const emp = db.empilhadeiras.find((e) => e.id === req.params.id);
-    if (!emp) return res.status(404).json({ erro: "Empilhadeira não encontrada" });
+    res.status(201).json(novaEmpilhadeira);
+  } catch (error) {
+    res.status(400).json({ error: 'Erro ao criar empilhadeira. O identificador deve ser único.' });
+  }
+});
 
-    emp.status = status;
-    res.json(emp);
-  });
+// Atualizar dados ou status da empilhadeira
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { identificador, operador, status, bateria } = req.body;
 
-  return router;
-};
+    const empilhadeiraAtualizada = await prisma.empilhadeira.update({
+      where: { id },
+      data: {
+        identificador,
+        operador,
+        status,
+        bateria: bateria !== undefined ? parseInt(bateria, 10) : undefined
+      }
+    });
+
+    res.json(empilhadeiraAtualizada);
+  } catch (error) {
+    res.status(400).json({ error: 'Erro ao atualizar empilhadeira.' });
+  }
+});
+
+// Excluir empilhadeira
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.empilhadeira.delete({ where: { id } });
+    res.json({ message: 'Empilhadeira removida com sucesso.' });
+  } catch (error) {
+    res.status(400).json({ error: 'Erro ao remover empilhadeira.' });
+  }
+});
+
+module.exports = router;

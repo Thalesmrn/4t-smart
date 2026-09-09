@@ -1,98 +1,86 @@
-const express = require("express");
-const { recalcularPrioridades } = require("../services/priorityEngine");
+const express = require('express');
+const router = express.Router();
+const prisma = require('../data/db');
 
-module.exports = function (db) {
-  const router = express.Router();
+// Listar todas as tarefas
+router.get('/', async (req, res) => {
+  try {
+    const tarefas = await prisma.tarefa.findMany({
+      orderBy: { prioridade: 'asc' }
+    });
+    res.json(tarefas);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao buscar tarefas no banco de dados.' });
+  }
+});
 
-  // Lista tarefas já ordenadas por prioridade (recalcula a cada consulta — reflete o "tempo real")
-  router.get("/", (req, res) => {
-    recalcularPrioridades(db);
-    const { status, empilhadeiraId } = req.query;
-    let resultado = db.tarefas;
-    if (status) resultado = resultado.filter((t) => t.status === status);
-    if (empilhadeiraId) resultado = resultado.filter((t) => t.empilhadeiraId === empilhadeiraId);
-    res.json(resultado);
-  });
+// Buscar tarefa por ID
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tarefa = await prisma.tarefa.findUnique({ where: { id } });
 
-  router.get("/:id", (req, res) => {
-    const tarefa = db.tarefas.find((t) => t.id === req.params.id);
-    if (!tarefa) return res.status(404).json({ erro: "Tarefa não encontrada" });
-    res.json(tarefa);
-  });
-
-  // Atribuição automática: pega a tarefa pendente de maior prioridade e a empilhadeira
-  // disponível mais próxima de sua origem.
-  router.post("/atribuir-automatico", (req, res) => {
-    const { otimizarSequencia, coordDe, distancia } = require("../services/routingEngine");
-    recalcularPrioridades(db);
-
-    const pendentes = db.tarefas.filter((t) => t.status === "pendente");
-    const disponiveis = db.empilhadeiras.filter((e) => e.status === "disponivel");
-
-    if (pendentes.length === 0 || disponiveis.length === 0) {
-      return res.json({ atribuidas: [], mensagem: "Sem tarefas pendentes ou empilhadeiras disponíveis." });
+    if (!tarefa) {
+      return res.status(404).json({ error: 'Tarefa não encontrada.' });
     }
 
-    const atribuidas = [];
-    for (const tarefa of pendentes) {
-      const livre = db.empilhadeiras.filter((e) => e.status === "disponivel");
-      if (livre.length === 0) break;
+    res.json(tarefa);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao buscar tarefa.' });
+  }
+});
 
-      // Escolhe a empilhadeira com menor distância até a origem da tarefa (proximidade),
-      // priorizando também a capacidade em relação ao peso do big bag.
-      let melhor = null;
-      let melhorDist = Infinity;
-      livre.forEach((emp) => {
-        const origem = coordDe(tarefa.origemId, db.posicoes);
-        const atual = coordDe(emp.posicaoAtualId, db.posicoes);
-        const d = distancia(atual, origem);
-        if (d < melhorDist) {
-          melhorDist = d;
-          melhor = emp;
-        }
-      });
+// Criar uma nova tarefa
+router.post('/', async (req, res) => {
+  try {
+    const { descricao, tipo, prioridade, status } = req.body;
 
-      if (melhor) {
-        tarefa.empilhadeiraId = melhor.id;
-        tarefa.status = "atribuida";
-        melhor.status = "em_tarefa";
-        atribuidas.push({
-          tarefaId: tarefa.id,
-          empilhadeiraId: melhor.id,
-          distanciaAteOrigemCelulas: melhorDist,
-          motivo: `${melhor.nome} estava a ${melhorDist} células da origem (${tarefa.origemId}) — a mais próxima entre as disponíveis.`,
-        });
+    const novaTarefa = await prisma.tarefa.create({
+      data: {
+        descricao,
+        tipo,
+        prioridade: parseInt(prioridade, 10) || 1,
+        status: status || 'PENDENTE'
       }
-    }
+    });
 
-    res.json({ atribuidas });
-  });
+    res.status(201).json(novaTarefa);
+  } catch (error) {
+    res.status(400).json({ error: 'Erro ao criar tarefa.' });
+  }
+});
 
-  // Atribuição manual
-  router.post("/:id/atribuir", (req, res) => {
-    const { empilhadeiraId } = req.body;
-    const tarefa = db.tarefas.find((t) => t.id === req.params.id);
-    const empilhadeira = db.empilhadeiras.find((e) => e.id === empilhadeiraId);
+// Atualizar status ou dados da tarefa
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { descricao, tipo, prioridade, status } = req.body;
 
-    if (!tarefa) return res.status(404).json({ erro: "Tarefa não encontrada" });
-    if (!empilhadeira) return res.status(404).json({ erro: "Empilhadeira não encontrada" });
-    if (empilhadeira.status !== "disponivel")
-      return res.status(400).json({ erro: "Empilhadeira não está disponível" });
+    const tarefaAtualizada = await prisma.tarefa.update({
+      where: { id },
+      data: {
+        descricao,
+        tipo,
+        prioridade: prioridade ? parseInt(prioridade, 10) : undefined,
+        status
+      }
+    });
 
-    tarefa.empilhadeiraId = empilhadeira.id;
-    tarefa.status = "atribuida";
-    empilhadeira.status = "em_tarefa";
+    res.json(tarefaAtualizada);
+  } catch (error) {
+    res.status(400).json({ error: 'Erro ao atualizar tarefa.' });
+  }
+});
 
-    res.json(tarefa);
-  });
+// Excluir uma tarefa
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.tarefa.delete({ where: { id } });
+    res.json({ message: 'Tarefa removida com sucesso.' });
+  } catch (error) {
+    res.status(400).json({ error: 'Erro ao remover tarefa.' });
+  }
+});
 
-  // Operador confirma conclusão (via Monitor do Operador)
-  router.post("/:id/concluir", (req, res) => {
-    const { concluirTarefa } = require("../services/taskService");
-    const resultado = concluirTarefa(db, req.params.id);
-    if (resultado.erro) return res.status(resultado.status).json({ erro: resultado.erro });
-    res.json(resultado.tarefa);
-  });
-
-  return router;
-};
+module.exports = router;
