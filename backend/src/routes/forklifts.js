@@ -11,8 +11,12 @@ function normalizarEmpilhadeira(e) {
     modelo: e?.modelo || "Toyota 8FGU25",
     operador: e?.operador || "Operador 01",
     status: e?.status || "DISPONIVEL",
+    posicaoAtualId: e?.posicaoAtualId || "A-01",
     
-    // Números protegidos contra undefined
+    // Campo exato exigido pelo frontend no card
+    distanciaPercorridaHojeM: e?.distanciaPercorridaHojeM ?? 0,
+    
+    // Demais métricas numéricas
     bateriaPct: e?.bateriaPct ?? 100,
     horasUso: e?.horasUso ?? 0,
     capacidadeKg: e?.capacidadeKg ?? 2500,
@@ -22,7 +26,12 @@ function normalizarEmpilhadeira(e) {
     criadoEm: e?.criadoEm || e?.createdAt || agora,
     atualizadoEm: e?.atualizadoEm || e?.updatedAt || agora,
     ultimaManutencao: e?.ultimaManutencao || agora,
-    dataHora: e?.dataHora || agora
+    dataHora: e?.dataHora || agora,
+
+    // Sub-objeto de tarefa atual para evitar nulos indesejados
+    tarefaAtual: e?.tarefaAtual ? {
+      descricao: e.tarefaAtual.descricao || "Sem tarefas ativas"
+    } : null
   };
 }
 
