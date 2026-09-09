@@ -6,6 +6,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Desativa o cache do navegador para garantir recebimento dos dados novos
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+
 const PORT = process.env.PORT || 3000;
 
 function healthCheck(req, res) {
