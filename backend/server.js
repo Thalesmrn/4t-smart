@@ -20,30 +20,40 @@ function healthCheck(req, res) {
 app.get("/health", healthCheck);
 app.get("/api/health", healthCheck);
 
-// Rotas conectadas ao Prisma / Supabase
+// Estrutura de fallback para rotas que ainda esperam o objeto db
+const dbMockVazio = {
+  galpoes: [],
+  posicoes: [],
+  lotes: [],
+  bigBags: [],
+  empilhadeiras: [],
+  caminhoes: [],
+  tarefas: [],
+  metricasTurno: {
+    inicioTurno: new Date().toISOString(),
+    tarefasConcluidas: 0,
+    distanciaTotalPercorridaM: 0,
+    tempoMedioPorMovimentacaoMin: 0,
+    indiceMovimentacaoIndiretaPct: 0
+  }
+};
+
+// Rotas integradas ao Prisma / Supabase
 app.use("/api/lotes", require("./src/routes/lots"));
 app.use("/api/tarefas", require("./src/routes/tasks"));
 app.use("/api/empilhadeiras", require("./src/routes/forklifts"));
 
-// Rotas secundárias do frontend (ajuste a importação conforme o formato exportado pelos arquivos)
-if (typeof require("./src/routes/dashboard") === 'function') {
-  app.use("/api/dashboard", require("./src/routes/dashboard")({}));
-  app.use("/api/armazem", require("./src/routes/warehouse")({}));
-  app.use("/api/roteirizacao", require("./src/routes/routing")({}));
-  app.use("/api/slotting", require("./src/routes/slotting")({}));
-  app.use("/api/operador", require("./src/routes/operator")({}));
-} else {
-  app.use("/api/dashboard", require("./src/routes/dashboard"));
-  app.use("/api/armazem", require("./src/routes/warehouse"));
-  app.use("/api/roteirizacao", require("./src/routes/routing"));
-  app.use("/api/slotting", require("./src/routes/slotting"));
-  app.use("/api/operador", require("./src/routes/operator"));
-}
+// Rotas secundárias do frontend com injeção segura
+const carregarRota = (caminho) => {
+  const modulo = require(caminho);
+  return typeof modulo === 'function' ? modulo(dbMockVazio) : modulo;
+};
 
-// Rota padrão para caminhos não encontrados (404)
-app.use((req, res) => {
-  res.status(404).json({ erro: "Rota não encontrada" });
-});
+app.use("/api/dashboard", carregarRota("./src/routes/dashboard"));
+app.use("/api/armazem", carregarRota("./src/routes/warehouse"));
+app.use("/api/roteirizacao", carregarRota("./src/routes/routing"));
+app.use("/api/slotting", carregarRota("./src/routes/slotting"));
+app.use("/api/operador", carregarRota("./src/routes/operator"));
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚛 4T Smart Warehouse API rodando na porta ${PORT}`);
