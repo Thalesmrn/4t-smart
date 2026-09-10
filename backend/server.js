@@ -58,9 +58,13 @@ const dbMockVazio = {
   }
 };
 // Rotas integradas ao Prisma / Supabase
-app.use("/api/lotes", require("./src/routes/lots"));
-app.use("/api/tarefas", require("./src/routes/tasks"));
-app.use("/api/empilhadeiras", require("./src/routes/forklifts"));
+app.use('/api/empilhadeiras', require('./src/routes/forklifts'));
+app.use('/api/lotes', require('./src/routes/lots'));
+app.use('/api/tarefas', require('./src/routes/tasks'));
+app.use('/api/armazem', require('./src/routes/warehouse')(db));
+app.use('/api/slotting', require('./src/routes/slotting')(db));
+app.use('/api/roteirizacao', require('./src/routes/routing')(db));
+app.use('/api/operador', require('./src/routes/operator')(db));
 
 // Rotas secundárias do frontend com injeção segura
 const carregarRota = (caminho) => {
