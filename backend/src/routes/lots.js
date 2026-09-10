@@ -5,15 +5,18 @@ const prisma = require('../data/db');
 function normalizarLote(l) {
   const agora = new Date().toISOString();
   
-  // Se o codigo estiver ausente ou for igual ao UUID, gera um código amigável estilo LOT-XXXX
-  const codigoFormatado = (l?.codigo && !l.codigo.includes('-')) 
+  // Se o lote veio do banco com um código preenchido (sem ser UUID), usa ele;
+  // se o código for um UUID ou estiver vazio, gera o formato legível LOT-XXXX
+  const codigoLegivel = (l?.codigo && !l.codigo.includes('-')) 
     ? l.codigo 
-    : `LOT-${l?.id ? l.id.slice(0, 5).toUpperCase() : '01'}`;
+    : `LOT-${l?.id ? l.id.slice(0, 5).toUpperCase() : Math.floor(1000 + Math.random() * 9000)}`;
 
   return {
-    id: l?.id || "LOT-01",
-    codigo: codigoFormatado,
-    produto: l?.produto || "Grãos",
+    // Sobrescrevemos a propriedade id com o código amigável para enganar o frontend
+    id: codigoLegivel,
+    idReal: l?.id,
+    codigo: codigoLegivel,
+    produto: l?.produto || "Café Arábico",
     status: l?.status || "DISPONIVEL",
     quantidadeBags: l?.quantidade ?? 0,
     pesoTotalKg: (l?.quantidade ?? 0) * 1000,
@@ -25,7 +28,7 @@ function normalizarLote(l) {
   };
 }
 
-// GET: Lista os lotes gravados no Supabase
+// GET: Lista os lotes formatados
 router.get('/', async (req, res) => {
   try {
     const lotes = await prisma.lote.findMany();
@@ -41,14 +44,14 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST: Grava um novo lote e garante o salvamento do código amigável
+// POST: Grava novo lote no Supabase
 router.post('/', async (req, res) => {
   try {
     const { codigo, produto, quantidade, quantidadeBags } = req.body;
 
     const qtdFinal = quantidade ? Number(quantidade) : (quantidadeBags ? Number(quantidadeBags) : 1);
     const codigoFinal = codigo && codigo.trim() !== '' ? codigo : `LOT-${Math.floor(1000 + Math.random() * 9000)}`;
-    const produtoFinal = produto || "Café Beneficiado";
+    const produtoFinal = produto || "Café Arábico";
 
     const novoLote = await prisma.lote.create({
       data: {
