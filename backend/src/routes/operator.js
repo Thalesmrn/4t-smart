@@ -15,34 +15,38 @@ function normalizarTarefa(t) {
     destino: "B-02",
     empilhadeiraId: "EMP-01",
     criadoEm: t?.createdAt || agora,
-    atualizadoEm: t?.updatedAt || agora
+    atualizadoEm: t?.updatedAt || agora,
+    historico: [],
+    passos: []
   };
 }
 
-// GET: Retorna dados do painel do operador buscando tarefas no Supabase
 router.get('/', async (req, res) => {
   try {
     const tarefas = await prisma.tarefa.findMany();
     
-    const tarefaAtual = tarefas.find(t => t.status === "EM_ANDAMENTO") || tarefas[0];
-    const proximasTarefas = tarefas.filter(t => t.id !== tarefaAtual?.id);
+    const tarefasArray = Array.isArray(tarefas) ? tarefas : [];
+    const tarefaAtual = tarefasArray.find(t => t.status === "EM_ANDAMENTO") || tarefasArray[0] || null;
+    const proximasTarefas = tarefasArray.filter(t => t.id !== tarefaAtual?.id);
 
     res.json({
       operador: { id: "OP-01", nome: "Operador Principal" },
       tarefaAtual: tarefaAtual ? normalizarTarefa(tarefaAtual) : null,
-      proximasTarefas: proximasTarefas.map(normalizarTarefa)
+      // Garante 100% que seja um array para o .map() do React não quebrar
+      proximasTarefas: Array.isArray(proximasTarefas) ? proximasTarefas.map(normalizarTarefa) : [],
+      tarefas: tarefasArray.map(normalizarTarefa)
     });
   } catch (error) {
     console.error('❌ Erro ao buscar dados do operador:', error);
     res.json({
       operador: { id: "OP-01", nome: "Operador Principal" },
       tarefaAtual: normalizarTarefa({}),
-      proximasTarefas: []
+      proximasTarefas: [normalizarTarefa({})],
+      tarefas: [normalizarTarefa({})]
     });
   }
 });
 
-// POST: Concluir tarefa ativa
 router.post('/concluir', async (req, res) => {
   try {
     const { tarefaId } = req.body;
@@ -59,7 +63,6 @@ router.post('/concluir', async (req, res) => {
   }
 });
 
-// POST & PUT: Atualizar status de uma tarefa específica por ID
 const atualizarStatus = async (req, res) => {
   try {
     const { id } = req.params;
