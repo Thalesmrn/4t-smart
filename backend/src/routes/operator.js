@@ -1,26 +1,25 @@
 const express = require('express');
-const router = express.Router();
 
-// Função auxiliar para lidar com chamadas que recebem db no estilo antigo
 module.exports = function(db) {
-  const r = express.Router();
+  const router = express.Router();
 
-  // Endpoint chamado pelo Monitor do Operador após selecionar a empilhadeira
-  r.get('/:empilhadeiraId/proxima-tarefa', (req, res) => {
-    const { empilhadeiraId } = req.params;
-    
-    // Retorna nulo com 200 OK indicando que não há tarefas pendentes para a empilhadeira no momento
+  // GET: Dados do painel do operador
+  router.get('/', (req, res) => {
     res.json({
-      empilhadeiraId,
-      tarefa: null,
-      mensagem: "Nenhuma tarefa pendente."
+      operador: { id: "OP-01", nome: "Operador Principal" },
+      tarefaAtual: null,
+      proximasTarefas: []
     });
   });
 
-  // Endpoints adicionais de apoio do operador
-  r.get('/', (req, res) => {
-    res.json({ status: "ok" });
+  // POST/PUT: Concluir ou alterar status de uma tarefa pelo operador
+  router.post('/concluir', (req, res) => {
+    res.json({ status: "CONCLUIDA", mensagem: "Tarefa atualizada com sucesso!" });
   });
 
-  return r;
+  router.put('/tarefas/:id', (req, res) => {
+    res.json({ status: req.body.status || "CONCLUIDA" });
+  });
+
+  return router;
 };
