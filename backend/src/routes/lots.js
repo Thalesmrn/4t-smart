@@ -4,9 +4,15 @@ const prisma = require('../data/db');
 
 function normalizarLote(l) {
   const agora = new Date().toISOString();
+  
+  // Se o codigo estiver ausente ou for igual ao UUID, gera um código amigável estilo LOT-XXXX
+  const codigoFormatado = (l?.codigo && !l.codigo.includes('-')) 
+    ? l.codigo 
+    : `LOT-${l?.id ? l.id.slice(0, 5).toUpperCase() : '01'}`;
+
   return {
     id: l?.id || "LOT-01",
-    codigo: l?.codigo || "LOT-01",
+    codigo: codigoFormatado,
     produto: l?.produto || "Grãos",
     status: l?.status || "DISPONIVEL",
     quantidadeBags: l?.quantidade ?? 0,
@@ -35,14 +41,13 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST: Grava um novo lote de café no Supabase de verdade
+// POST: Grava um novo lote e garante o salvamento do código amigável
 router.post('/', async (req, res) => {
   try {
-    const { codigo, produto, quantidade, quantidadeBags, pesoTotalKg } = req.body;
+    const { codigo, produto, quantidade, quantidadeBags } = req.body;
 
-    // Converte e trata os valores numéricos vindos do formulário
     const qtdFinal = quantidade ? Number(quantidade) : (quantidadeBags ? Number(quantidadeBags) : 1);
-    const codigoFinal = codigo || `LOT-${Date.now()}`;
+    const codigoFinal = codigo && codigo.trim() !== '' ? codigo : `LOT-${Math.floor(1000 + Math.random() * 9000)}`;
     const produtoFinal = produto || "Café Beneficiado";
 
     const novoLote = await prisma.lote.create({
