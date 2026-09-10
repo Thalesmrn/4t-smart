@@ -1,12 +1,11 @@
 const express = require('express');
 const cors = require('cors');
-
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-// Desativa o cache do navegador para garantir recebimento dos dados novos
+// Desativa o cache do navegador para evitar 304 Not Modified
 app.use((req, res, next) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -14,70 +13,19 @@ app.use((req, res, next) => {
   next();
 });
 
-const PORT = process.env.PORT || 3000;
-
-function healthCheck(req, res) {
-  res.json({ 
-    status: "ok", 
-    servico: "4T Smart Warehouse API", 
-    timestamp: new Date().toISOString() 
-  });
-}
-
-// Endpoints de Health Check
-app.get("/health", healthCheck);
-app.get("/api/health", healthCheck);
-
-// Estrutura mínima funcional para destravar as telas Mapa e Monitor do Operador
-const dbMockVazio = {
-  galpoes: [
-    {
-      id: "G1",
-      nome: "Galpão Principal",
-      larguraM: 50,
-      comprimentoM: 100,
-      ruas: [],
-      posicoes: []
-    }
-  ],
-  posicoes: [],
-  lotes: [],
-  bigBags: [],
-  empilhadeiras: [],
-  caminhoes: [],
-  tarefas: [],
-  operadores: [
-    { id: "op1", nome: "Operador Padrão", empilhadeiraId: null }
-  ],
-  metricasTurno: {
-    inicioTurno: new Date().toISOString(),
-    tarefasConcluidas: 0,
-    distanciaTotalPercorridaM: 0,
-    tempoMedioPorMovimentacaoMin: 0,
-    indiceMovimentacaoIndiretaPct: 0
-  }
-};
-// Rotas integradas ao Prisma / Supabase
+// Registro de todas as rotas da API
 app.use('/api/empilhadeiras', require('./src/routes/forklifts'));
 app.use('/api/lotes', require('./src/routes/lots'));
 app.use('/api/tarefas', require('./src/routes/tasks'));
+app.use('/api/operador', require('./src/routes/operator'));
+
+// Rotas utilitárias (se slotting, routing e warehouse exportarem funções, mantêm o db)
+const db = require('./src/data/db');
 app.use('/api/armazem', require('./src/routes/warehouse')(db));
 app.use('/api/slotting', require('./src/routes/slotting')(db));
 app.use('/api/roteirizacao', require('./src/routes/routing')(db));
-app.use('/api/operador', require('./src/routes/operator')(db));
 
-// Rotas secundárias do frontend com injeção segura
-const carregarRota = (caminho) => {
-  const modulo = require(caminho);
-  return typeof modulo === 'function' ? modulo(dbMockVazio) : modulo;
-};
-
-app.use("/api/dashboard", carregarRota("./src/routes/dashboard"));
-app.use("/api/armazem", carregarRota("./src/routes/warehouse"));
-app.use("/api/roteirizacao", carregarRota("./src/routes/routing"));
-app.use("/api/slotting", carregarRota("./src/routes/slotting"));
-app.use("/api/operador", carregarRota("./src/routes/operator"));
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n🚛 4T Smart Warehouse API rodando na porta ${PORT}`);
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
