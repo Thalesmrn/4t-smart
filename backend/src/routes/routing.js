@@ -1,6 +1,6 @@
 const express = require('express');
 
-module.exports = function(db) {
+module.exports = function (store) {
   const router = express.Router();
 
   // GET Inicial
@@ -15,19 +15,9 @@ module.exports = function(db) {
     });
   });
 
-  // Endpoint POST para o botão "Calcular sequência ótima"
-  router.post('/calcular', (req, res) => {
-    const { empilhadeiraId } = req.body || {};
-
-    res.json({
-      empilhadeiraId: empilhadeiraId || "EMP-01",
-      sequencia: [
-        { ordem: 1, tarefaId: "TAR-01", origem: "A-01", destino: "B-02" },
-        { ordem: 2, tarefaId: "TAR-02", origem: "B-02", destino: "C-05" }
-      ],
-      distanciaEstimadaMeters: 120,
-      tempoEstimadoMinutos: 4.5
-    });
+  // GET /api/roteirizacao/sequencia/:empilhadeiraId — usado pelo botão "Calcular sequência ótima"
+  router.get('/sequencia/:empilhadeiraId', (req, res) => {
+    res.json(store.gerarSequenciaOtimizada(req.params.empilhadeiraId));
   });
 
   return router;

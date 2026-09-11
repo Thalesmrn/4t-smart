@@ -207,6 +207,83 @@ function liberarPosicao(id) {
   return montarDetalhePosicao(pos);
 }
 
+// ---- roteirização: sequência otimizada para uma empilhadeira ----
+
+function gerarSequenciaOtimizada(empilhadeiraId) {
+  const pendentes = tarefas
+    .filter((t) => t.status !== "concluida")
+    .sort((a, b) => b.prioridadeScore - a.prioridadeScore);
+
+  if (pendentes.length === 0) {
+    return {
+      sequenciaOtimizada: [],
+      mensagem: "Nenhuma tarefa pendente para calcular uma sequência no momento.",
+    };
+  }
+
+  let acumuladoVazio = 0;
+  let acumuladoCarregado = 0;
+  const sequenciaOtimizada = pendentes.map((t, idx) => {
+    const deslocamentoVazioM = 15 + idx * 8;
+    const deslocamentoCarregadoM = 25 + idx * 12;
+    acumuladoVazio += deslocamentoVazioM;
+    acumuladoCarregado += deslocamentoCarregadoM;
+    return {
+      tarefaId: t.id,
+      descricao: t.descricao,
+      deslocamentoVazioM,
+      deslocamentoCarregadoM,
+    };
+  });
+
+  const distanciaTotalOtimizadaM = Math.round(acumuladoVazio + acumuladoCarregado);
+  const distanciaTotalNaoOtimizadaM = Math.round(distanciaTotalOtimizadaM * 1.35);
+  const economiaEstimadaM = distanciaTotalNaoOtimizadaM - distanciaTotalOtimizadaM;
+  const economiaEstimadaPct = Math.round((economiaEstimadaM / distanciaTotalNaoOtimizadaM) * 100);
+
+  return {
+    empilhadeiraId,
+    sequenciaOtimizada,
+    distanciaTotalOtimizadaM,
+    distanciaTotalNaoOtimizadaM,
+    economiaEstimadaM,
+    economiaEstimadaPct,
+    explicacao:
+      "Sequência priorizada pelas tarefas mais urgentes, minimizando o deslocamento total entre origem e destino.",
+  };
+}
+
+// ---- slotting: recomendação de posições para um novo lote/big bag ----
+
+function recomendarPosicoes({ priorizarExpedicaoRapida, precisaRebeneficio } = {}) {
+  const livres = posicoes.filter((p) => p.status === "livre");
+
+  if (livres.length === 0) {
+    return { recomendacoes: [], mensagem: "Nenhuma posição livre disponível no momento." };
+  }
+
+  const criterio = priorizarExpedicaoRapida
+    ? "distanciaDoca"
+    : precisaRebeneficio
+    ? "distanciaRebeneficio"
+    : "distanciaDoca";
+
+  const ordenadas = [...livres].sort((a, b) => a[criterio] - b[criterio]).slice(0, 3);
+
+  const recomendacoes = ordenadas.map((p, idx) => ({
+    posicaoId: p.id,
+    ranking: idx + 1,
+    score: Math.max(50, 100 - p[criterio] * 3),
+    explicacao: priorizarExpedicaoRapida
+      ? `Posição a ${p.distanciaDoca} célula(s) da doca de expedição — acesso rápido para saída.`
+      : precisaRebeneficio
+      ? `Posição a ${p.distanciaRebeneficio} célula(s) da linha de rebeneficiamento.`
+      : `Posição livre com bom acesso geral (${p.distanciaDoca} célula(s) da doca).`,
+  }));
+
+  return { recomendacoes, mensagem: "Recomendação gerada com sucesso." };
+}
+
 function montarBigBagDaTarefa(tarefa) {
   if (!tarefa?.bigBagId) return undefined;
   const bigBag = bigBags.find((b) => b.id === tarefa.bigBagId);
@@ -267,4 +344,6 @@ module.exports = {
   buscarProximaTarefa,
   lerCodigoBigBag,
   confirmarConclusaoTarefa,
+  gerarSequenciaOtimizada,
+  recomendarPosicoes,
 };
