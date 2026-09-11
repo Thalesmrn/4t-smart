@@ -1,43 +1,43 @@
 const express = require('express');
 
-module.exports = function(db) {
+module.exports = function (store) {
   const router = express.Router();
-  const agora = new Date().toISOString();
 
+  // GET /api/armazem  — resumo (mantido para compatibilidade)
   router.get('/', (req, res) => {
     res.json({
-      galpoes: [
-        {
-          id: "G1",
-          nome: "Galpão Principal",
-          larguraM: 50,
-          comprimentoM: 100,
-          ruas: [],
-          posicoes: [
-            {
-              id: "POS-01",
-              codigo: "A-01",
-              status: "LIVRE",
-              capacidadeKg: 1000,
-              ocupacaoPct: 0,
-              atualizadoEm: agora,
-              criadoEm: agora
-            }
-          ]
-        }
-      ],
-      posicoes: [
-        {
-          id: "POS-01",
-          codigo: "A-01",
-          status: "LIVRE",
-          capacidadeKg: 1000,
-          ocupacaoPct: 0,
-          atualizadoEm: agora,
-          criadoEm: agora
-        }
-      ]
+      galpoes: store.buscarGalpoes(),
+      posicoes: store.posicoes,
     });
+  });
+
+  // GET /api/armazem/galpoes
+  router.get('/galpoes', (req, res) => {
+    res.json(store.buscarGalpoes());
+  });
+
+  // GET /api/armazem/posicoes?galpaoId=G1
+  router.get('/posicoes', (req, res) => {
+    const { galpaoId } = req.query;
+    res.json(store.buscarPosicoes(galpaoId));
+  });
+
+  // GET /api/armazem/posicoes/:id
+  router.get('/posicoes/:id', (req, res) => {
+    const detalhe = store.buscarPosicaoDetalhe(req.params.id);
+    if (!detalhe) {
+      return res.status(404).json({ erro: "Posição não encontrada." });
+    }
+    res.json(detalhe);
+  });
+
+  // POST /api/armazem/posicoes/:id/liberar
+  router.post('/posicoes/:id/liberar', (req, res) => {
+    const detalhe = store.liberarPosicao(req.params.id);
+    if (!detalhe) {
+      return res.status(404).json({ erro: "Posição não encontrada." });
+    }
+    res.json(detalhe);
   });
 
   return router;

@@ -37,7 +37,7 @@ function normalizarTarefa(t) {
 
 router.get('/', async (req, res) => {
   try {
-    const tarefas = await prisma.task.findMany();
+    const tarefas = await prisma.tarefa.findMany();
 
     if (tarefas && tarefas.length > 0) {
       return res.json(tarefas.map(normalizarTarefa));

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const prisma = require('../data/db');
+const store = require('../data/store');
 
 function normalizarTarefa(t) {
   const agora = new Date().toISOString();
@@ -21,10 +22,11 @@ function normalizarTarefa(t) {
   };
 }
 
+// GET /api/operador — usado pela tela de Cadastros/legado (base de tarefas do Postgres)
 router.get('/', async (req, res) => {
   try {
     const tarefas = await prisma.tarefa.findMany();
-    
+
     const tarefasArray = Array.isArray(tarefas) ? tarefas : [];
     const tarefaAtual = tarefasArray.find(t => t.status === "EM_ANDAMENTO") || tarefasArray[0] || null;
     const proximasTarefas = tarefasArray.filter(t => t.id !== tarefaAtual?.id);
@@ -45,6 +47,23 @@ router.get('/', async (req, res) => {
       tarefas: [normalizarTarefa({})]
     });
   }
+});
+
+// GET /api/operador/:empilhadeiraId/proxima-tarefa — usado pelo Monitor do Operador
+router.get('/:empilhadeiraId/proxima-tarefa', (req, res) => {
+  const resultado = store.buscarProximaTarefa(req.params.empilhadeiraId);
+  res.json(resultado);
+});
+
+// POST /api/operador/:empilhadeiraId/ler-codigo — simula leitura de RFID/QR Code
+router.post('/:empilhadeiraId/ler-codigo', (req, res) => {
+  const { codigoLido, tarefaId } = req.body || {};
+  res.json(store.lerCodigoBigBag(tarefaId, codigoLido));
+});
+
+// POST /api/operador/:empilhadeiraId/confirmar-conclusao/:tarefaId
+router.post('/:empilhadeiraId/confirmar-conclusao/:tarefaId', (req, res) => {
+  res.json(store.confirmarConclusaoTarefa(req.params.tarefaId));
 });
 
 router.post('/concluir', async (req, res) => {

@@ -13,19 +13,19 @@ app.use((req, res, next) => {
   next();
 });
 
-// Registro de todas as rotas da API
-app.use('/api/dashboard', require('./src/routes/dashboard'));
+// Rotas que já usam o Postgres/Prisma (empilhadeiras, lotes, tarefas de cadastro, operador)
 app.use('/api/empilhadeiras', require('./src/routes/forklifts'));
 app.use('/api/lotes', require('./src/routes/lots'));
 app.use('/api/tarefas', require('./src/routes/tasks'));
 app.use('/api/operador', require('./src/routes/operator'));
 
-// Rotas utilitárias (se slotting, routing e warehouse exportarem funções, mantêm o db)
-const db = require('./src/data/db');
-app.use('/api/dashboard', require('./src/routes/dashboard')(db));
-app.use('/api/armazem', require('./src/routes/warehouse')(db));
-app.use('/api/slotting', require('./src/routes/slotting')(db));
-app.use('/api/roteirizacao', require('./src/routes/routing')(db));
+// Store de demonstração em memória (galpões, posições, big bags, tarefas do
+// operador e métricas do turno — entidades que ainda não existem no banco)
+const store = require('./src/data/store');
+app.use('/api/dashboard', require('./src/routes/dashboard')(store));
+app.use('/api/armazem', require('./src/routes/warehouse')(store));
+app.use('/api/slotting', require('./src/routes/slotting')(store));
+app.use('/api/roteirizacao', require('./src/routes/routing')(store));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
