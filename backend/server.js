@@ -14,6 +14,7 @@ app.use((req, res, next) => {
 });
 
 // Registro de todas as rotas da API
+app.use('/api/dashboard', require('./src/routes/dashboard'));
 app.use('/api/empilhadeiras', require('./src/routes/forklifts'));
 app.use('/api/lotes', require('./src/routes/lots'));
 app.use('/api/tarefas', require('./src/routes/tasks'));
