@@ -1,7 +1,8 @@
 // Em produção (Vercel), VITE_API_URL aponta para o backend real no Render,
 // ex.: https://meu-backend.onrender.com — sem essa variável, cai no caminho
 // relativo "/api", que só funciona em dev graças ao proxy do vite.config.js.
-const API_URL = import.meta.env.VITE_API_URL || "";
+// Se a variável VITE_API_URL não vier da Vercel, assume diretamente o backend do Render
+const API_URL = import.meta.env.VITE_API_URL || "https://fourt-smart.onrender.com";
 const BASE_URL = `${API_URL}/api`;
 
 async function request(path, options = {}) {
