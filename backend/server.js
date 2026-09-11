@@ -22,6 +22,7 @@ app.use('/api/operador', require('./src/routes/operator'));
 
 // Rotas utilitárias (se slotting, routing e warehouse exportarem funções, mantêm o db)
 const db = require('./src/data/db');
+app.use('/api/dashboard', require('./src/routes/dashboard')(db));
 app.use('/api/armazem', require('./src/routes/warehouse')(db));
 app.use('/api/slotting', require('./src/routes/slotting')(db));
 app.use('/api/roteirizacao', require('./src/routes/routing')(db));
