@@ -3,10 +3,12 @@ import { api } from "../lib/api";
 import { Loading, ErrorBox, Card, Badge } from "../components/Common.jsx";
 
 const CORES_STATUS = {
-  livre: "bg-emerald-200 hover:bg-emerald-300 border-emerald-400",
-  ocupada: "bg-slate-300 hover:bg-slate-400 border-slate-500",
-  bloqueada: "bg-red-300 hover:bg-red-400 border-red-500",
-  atencao: "bg-amber-300 hover:bg-amber-400 border-amber-500",
+  livre: "bg-emerald-200 hover:bg-emerald-300 border-emerald-400 text-slate-800",
+  disponivel: "bg-emerald-200 hover:bg-emerald-300 border-emerald-400 text-slate-800",
+  ocupada: "bg-slate-300 hover:bg-slate-400 border-slate-500 text-slate-800",
+  ocupado: "bg-slate-300 hover:bg-slate-400 border-slate-500 text-slate-800",
+  bloqueada: "bg-red-300 hover:bg-red-400 border-red-500 text-white",
+  atencao: "bg-amber-300 hover:bg-amber-400 border-amber-500 text-slate-800",
 };
 
 export default function WarehouseMap() {
@@ -66,7 +68,8 @@ export default function WarehouseMap() {
   if (!galpaoAtivo) return <Loading label="Carregando galpões..." />;
 
   const galpao = galpoes.find((g) => g.id === galpaoAtivo);
-  const colunas = galpao ? galpao.colunas : 1;
+  // Garante o fallback de 10 colunas caso galpao.colunas não exista ou venha zerado
+  const colunas = (galpao && galpao.colunas && galpao.colunas > 0) ? galpao.colunas : 10;
 
   return (
     <div className="space-y-6">
@@ -114,21 +117,27 @@ export default function WarehouseMap() {
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
         <Card>
           <div
-            className="grid gap-1.5"
+            className="grid gap-2 p-2 justify-items-center"
             style={{ gridTemplateColumns: `repeat(${colunas}, minmax(0, 1fr))` }}
           >
-            {posicoes.map((p) => (
-              <button
-                key={p.id}
-                title={p.id}
-                onClick={() => abrirDetalhe(p.id)}
-                className={`aspect-square rounded border text-[9px] font-semibold flex items-center justify-center transition-colors ${
-                  CORES_STATUS[p.status]
-                } ${selecionada?.id === p.id ? "ring-2 ring-brand-600" : ""}`}
-              >
-                {p.coluna}
-              </button>
-            ))}
+            {posicoes.map((p) => {
+              const statusKey = p.status ? p.status.toLowerCase() : "livre";
+              const corEstilo = CORES_STATUS[statusKey] || CORES_STATUS.livre;
+              const rotulo = p.codigo || p.id;
+
+              return (
+                <button
+                  key={p.id}
+                  title={rotulo}
+                  onClick={() => abrirDetalhe(p.id)}
+                  className={`w-12 h-12 aspect-square rounded border text-[10px] font-bold flex items-center justify-center transition-colors shadow-sm ${corEstilo} ${
+                    selecionada?.id === p.id ? "ring-2 ring-brand-600 shadow-md scale-105" : ""
+                  }`}
+                >
+                  {rotulo}
+                </button>
+              );
+            })}
           </div>
         </Card>
 
@@ -140,7 +149,7 @@ export default function WarehouseMap() {
             <div className="space-y-3 text-sm">
               <div>
                 <p className="text-xs text-slate-400">Código</p>
-                <p className="font-semibold">{selecionada.id}</p>
+                <p className="font-semibold">{selecionada.codigo || selecionada.id}</p>
               </div>
               <div>
                 <p className="text-xs text-slate-400">Status</p>
@@ -185,15 +194,15 @@ export default function WarehouseMap() {
               <div className="grid grid-cols-2 gap-2 pt-2 border-t">
                 <div>
                   <p className="text-xs text-slate-400">Dist. à doca</p>
-                  <p>{selecionada.distanciaDoca} células</p>
+                  <p>{selecionada.distanciaDoca || 0} células</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-400">Dist. rebeneficio</p>
-                  <p>{selecionada.distanciaRebeneficio} células</p>
+                  <p>{selecionada.distanciaRebeneficio || 0} células</p>
                 </div>
               </div>
 
-              {(selecionada.status === "ocupada" || selecionada.status === "atencao") && (
+              {(selecionada.status === "ocupada" || selecionada.status === "OCUPADA" || selecionada.status === "atencao") && (
                 <div className="pt-3 border-t">
                   <button
                     onClick={liberarPosicaoSelecionada}
