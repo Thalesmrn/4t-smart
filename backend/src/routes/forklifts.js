@@ -17,31 +17,23 @@ function normalizarEmpilhadeira(e) {
     horasUso: 0,
     capacidadeKg: 2500,
     velocidadeMedia: 0,
-    criadoEm: agora,
-    atualizadoEm: agora,
-    ultimaManutencao: agora,
-    dataHora: agora,
-    tarefaAtual: null
+    criadoEm: e?.createdAt || agora,
+    atualizadoEm: e?.updatedAt || agora
   };
 }
 
-// GET: Lista empilhadeiras do Supabase
+// GET: Lista empilhadeiras do banco
 router.get('/', async (req, res) => {
   try {
     const empilhadeiras = await prisma.empilhadeira.findMany();
-
-    if (empilhadeiras && empilhadeiras.length > 0) {
-      return res.json(empilhadeiras.map(normalizarEmpilhadeira));
-    }
-
-    res.json([normalizarEmpilhadeira({})]);
+    res.json(empilhadeiras.map(normalizarEmpilhadeira));
   } catch (error) {
-    console.error('❌ Erro ao buscar empilhadeiras no Supabase:', error);
-    res.json([normalizarEmpilhadeira({})]);
+    console.error('❌ Erro ao buscar empilhadeiras no banco:', error);
+    res.status(500).json({ erro: "Erro ao buscar empilhadeiras." });
   }
 });
 
-// POST: Salva a nova empilhadeira no Supabase de verdade
+// POST: Cadastra nova empilhadeira
 router.post('/', async (req, res) => {
   try {
     const { nome, identificador, operador } = req.body;
@@ -56,10 +48,9 @@ router.post('/', async (req, res) => {
       }
     });
 
-    console.log('✅ Empilhadeira gravada com sucesso no PostgreSQL:', novaEmpilhadeira);
     res.status(201).json(normalizarEmpilhadeira(novaEmpilhadeira));
   } catch (error) {
-    console.error('❌ Erro ao salvar empilhadeira no Supabase:', error);
+    console.error('❌ Erro ao salvar empilhadeira:', error);
     res.status(500).json({ erro: "Erro ao gravar empilhadeira no banco de dados." });
   }
 });
