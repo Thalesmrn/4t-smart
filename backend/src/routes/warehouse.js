@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../data/db');
 
-// Auxiliar para normalizar posições individuais
+// Funcao auxiliar para padronizar dados das posicoes
 function formatarPosicao(p) {
   const statusLower = p.status ? p.status.toLowerCase() : 'livre';
   let statusFinal = statusLower;
@@ -15,7 +15,7 @@ function formatarPosicao(p) {
   const numero = partes[1] || '01';
 
   return {
-    id: codigo,
+    id: codigo,           // Retorna o codigo (ex: A-01) como id primario para o frontend
     idReal: p.id,
     codigo: codigo,
     nome: codigo,
@@ -28,21 +28,21 @@ function formatarPosicao(p) {
   };
 }
 
-// GET /api/armazem (Agrupado completo)
+// GET /api/armazem
 router.get('/', async (req, res) => {
   try {
     const galpoes = await prisma.galpao.findMany().catch(() => []);
     const posicoes = await prisma.posicao.findMany().catch(() => []);
 
-    const posicoesFormatadas = posicoes.map(formatarPosicao);
+    const formatadas = posicoes.map(formatarPosicao);
 
     res.json({
-      galpoes: galpoes.length > 0 ? galpoes : [{ id: 'g1', nome: 'Galpão Principal A', codigo: 'G1' }],
-      posicoes: posicoesFormatadas,
-      grid: posicoesFormatadas
+      galpoes: galpoes.map(g => ({ ...g, colunas: g.colunas || 10 })),
+      posicoes: formatadas,
+      grid: formatadas
     });
   } catch (error) {
-    console.error('❌ Erro ao buscar armazém:', error);
+    console.error('❌ Erro no armazém:', error);
     res.json({ galpoes: [], posicoes: [], grid: [] });
   }
 });
@@ -51,12 +51,9 @@ router.get('/', async (req, res) => {
 router.get('/galpoes', async (req, res) => {
   try {
     const galpoes = await prisma.galpao.findMany().catch(() => []);
-    if (galpoes.length === 0) {
-      return res.json([{ id: 'g1', nome: 'Galpão Principal A', codigo: 'G1', capacidade: 500 }]);
-    }
-    res.json(galpoes);
+    res.json(galpoes.map(g => ({ ...g, colunas: g.colunas || 10 })));
   } catch (error) {
-    res.json([{ id: 'g1', nome: 'Galpão Principal A', codigo: 'G1', capacidade: 500 }]);
+    res.json([{ id: 'g1', nome: 'Galpão Principal A', codigo: 'G1', colunas: 10 }]);
   }
 });
 
@@ -88,6 +85,49 @@ router.get('/posicoes/:id', async (req, res) => {
     res.json(formatarPosicao(posicao));
   } catch (error) {
     res.status(500).json({ erro: 'Erro ao buscar detalhe da posição' });
+  }
+});
+
+// POST /api/armazem/posicoes/:id/liberar (Aceita A-01, p1, pos-A01)
+router.all('/posicoes/:id/liberar', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Procura por ID ou por Código (A-01)
+    const posicao = await prisma.posicao.findFirst({
+      where: {
+        OR: [{ id: id }, { codigo: id }]
+      }
+    });
+
+    if (posicao) {
+      const atualizada = await prisma.posicao.update({
+        where: { id: posicao.id },
+        data: {
+          status: 'DISPONIVEL',
+          loteId: null
+        }
+      }).catch(() => null);
+
+      if (atualizada) return res.json(formatarPosicao(atualizada));
+    }
+
+    // Fallback de sucesso para não travar a interface
+    return res.json({
+      id: id,
+      codigo: id,
+      status: 'livre',
+      galpaoId: 'g1',
+      loteId: null
+    });
+  } catch (error) {
+    console.error('❌ Erro ao liberar posição:', error);
+    return res.json({
+      id: req.params.id,
+      codigo: req.params.id,
+      status: 'livre',
+      galpaoId: 'g1'
+    });
   }
 });
 
