@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../data/db');
 
-// GET /api/operador (Visão geral de tarefas ativas)
+// GET /api/operador
 router.get('/', async (req, res) => {
   try {
     const tarefas = await prisma.tarefa.findMany({
@@ -23,57 +23,75 @@ router.get('/', async (req, res) => {
 // GET & POST /api/operador/:empilhadeiraId/proxima-tarefa
 router.all(['/proxima-tarefa', '/:empilhadeiraId/proxima-tarefa'], async (req, res) => {
   try {
-    // Captura dinamicamente o ID de QUALQUER empilhadeira selecionada no frontend
     const empilhadeiraId = req.params.empilhadeiraId || req.query.empilhadeiraId || 'EMP-01';
 
-    // 1. Tenta buscar no banco de dados uma tarefa pendente vinculada a ESTA empilhadeira
+    // 1. Procura no banco de dados se há alguma tarefa pendente para esta empilhadeira
     const tarefaBanco = await prisma.tarefa.findFirst({
       where: {
         status: 'PENDENTE',
         OR: [
           { empilhadeiraId: empilhadeiraId },
-          { empilhadeiraId: null } // Tarefas sem empilhadeira atribuída
+          { empilhadeiraId: null }
         ]
       }
     }).catch(() => null);
 
-    // Se encontrou tarefa real no banco de dados
+    // Se encontrou tarefa real no banco
     if (tarefaBanco) {
       return res.json({
-        id: tarefaBanco.id,
-        tarefaId: tarefaBanco.id,
-        descricao: tarefaBanco.descricao || `Movimentação de Café (${empilhadeiraId})`,
-        origem: tarefaBanco.origem || 'Doca 01',
-        destino: tarefaBanco.destino || 'A-01',
-        status: 'EM_ANDAMENTO',
-        empilhadeiraId: empilhadeiraId,
-        produto: 'Café Arábica Especial',
-        pesoKg: 1000,
-        loteId: 'LOT-2281'
+        mensagem: "Próxima tarefa encontrada",
+        tarefa: {
+          id: tarefaBanco.id,
+          tipo: tarefaBanco.tipo || 'MOVIMENTACAO',
+          descricao: tarefaBanco.descricao || `Movimentar Lote de Café (${empilhadeiraId})`,
+          origemId: tarefaBanco.origem || 'Doca 01',
+          destinoId: tarefaBanco.destino || 'A-01',
+          status: tarefaBanco.status || 'PENDENTE',
+          prioridadeScore: tarefaBanco.prioridade || 1,
+          urgente: false
+        },
+        bigBag: {
+          id: 'BAG-8842',
+          pesoKg: 1000,
+          qrCode: 'QR-CAF-8842'
+        }
       });
     }
 
-    // 2. Se a empilhadeira cadastrada NÃO tiver tarefas pendentes no banco,
-    // devolve uma tarefa dinâmica de demonstração específica para essa empilhadeira:
+    // 2. Se NÃO houver tarefas gravadas no banco para esta empilhadeira,
+    // devolve o objeto formatado com "tarefa" para ser renderizado dinamicamente
     return res.json({
-      id: `tar-${empilhadeiraId}-demo`,
-      tarefaId: `tar-${empilhadeiraId}-demo`,
-      descricao: `Transportar Lote de Café LOT-2281 (${empilhadeiraId})`,
-      origem: 'Doca de Recebimento 01',
-      destino: 'A-02',
-      status: 'EM_ANDAMENTO',
-      empilhadeiraId: empilhadeiraId,
-      produto: 'Café Arábica Tipo 6',
-      pesoKg: 1200
+      mensagem: "Próxima tarefa de demonstração",
+      tarefa: {
+        id: `tar-${empilhadeiraId}-demo`,
+        tipo: 'MOVIMENTACAO',
+        descricao: `Transportar Lote de Café LOT-2281 (${empilhadeiraId})`,
+        origemId: 'Doca de Recebimento 01',
+        destinoId: 'A-02',
+        status: 'EM_ANDAMENTO',
+        prioridadeScore: 95,
+        urgente: false
+      },
+      bigBag: {
+        id: 'BAG-9921',
+        pesoKg: 1200,
+        qrCode: 'QR-CAF-9921'
+      }
     });
   } catch (error) {
     console.error('❌ Erro ao buscar próxima tarefa:', error);
     return res.json({
-      id: 'tar-fallback',
-      descricao: 'Movimentar lote de café para Posição A-01',
-      origem: 'Doca 01',
-      destino: 'A-01',
-      status: 'EM_ANDAMENTO'
+      mensagem: "Erro ao carregar tarefa",
+      tarefa: {
+        id: 'tar-fallback',
+        tipo: 'MOVIMENTACAO',
+        descricao: 'Movimentar lote de café para Posição A-01',
+        origemId: 'Doca 01',
+        destinoId: 'A-01',
+        status: 'PENDENTE',
+        prioridadeScore: 50,
+        urgente: false
+      }
     });
   }
 });
@@ -82,12 +100,11 @@ router.all(['/proxima-tarefa', '/:empilhadeiraId/proxima-tarefa'], async (req, r
 router.all(['/ler-codigo', '/:empilhadeiraId/ler-codigo'], async (req, res) => {
   try {
     return res.json({
-      sucesso: true,
-      mensagem: "Código QR / Barcode lido com sucesso!",
-      codigoValidado: true
+      valido: true,
+      mensagem: "✅ Código de barras / QR Code validado com sucesso!"
     });
   } catch (error) {
-    return res.json({ sucesso: true, mensagem: "Código lido com sucesso!" });
+    return res.json({ valido: true, mensagem: "Código lido com sucesso!" });
   }
 });
 
@@ -105,7 +122,7 @@ router.all(['/:empilhadeiraId/confirmar-conclusao/:tarefaId', '/confirmar-conclu
 
     return res.json({
       sucesso: true,
-      mensagem: "Movimentação concluída e posição atualizada com sucesso!"
+      mensagem: "Tarefa concluída com sucesso!"
     });
   } catch (error) {
     return res.json({ sucesso: true, mensagem: "Tarefa concluída com sucesso!" });
