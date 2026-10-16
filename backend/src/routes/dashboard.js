@@ -1,70 +1,95 @@
 const express = require("express");
+const { PrismaClient } = require("@prisma/client");
 
-module.exports = function (db) {
-  const router = express.Router();
+const prisma = new PrismaClient();
+const router = express.Router();
 
-  router.get("/", (req, res) => {
-    try {
-      // Garantia de fallbacks para evitar erros de array indefinido
-      const posicoes = Array.isArray(db?.posicoes) ? db.posicoes : [];
-      const tarefas = Array.isArray(db?.tarefas) ? db.tarefas : [];
-      const empilhadeiras = Array.isArray(db?.empilhadeiras) ? db.empilhadeiras : [];
-      const caminhoes = Array.isArray(db?.caminhoes) ? db.caminhoes : [];
-      const metricasTurno = db?.metricasTurno || {};
+router.get("/", async (req, res) => {
+  try {
+    // 1. Ocupação e posições (buscando contagens diretamente no BD)
+    const totalPosicoes = await prisma.lot.count();
+    const ocupadas = await prisma.lot.count({ where: { status: "ocupada" } });
+    const livres = await prisma.lot.count({ where: { status: "livre" } });
+    const bloqueadas = await prisma.lot.count({ where: { status: "bloqueada" } });
+    const ocupacaoPct = totalPosicoes > 0 ? Math.round((ocupadas / totalPosicoes) * 100) : 0;
 
-      const totalPosicoes = posicoes.length;
-      const ocupadas = posicoes.filter((p) => p.status === "ocupada").length;
-      const livres = posicoes.filter((p) => p.status === "livre").length;
-      const bloqueadas = posicoes.filter((p) => p.status === "bloqueada").length;
-      const ocupacaoPct = totalPosicoes > 0 ? Math.round((ocupadas / totalPosicoes) * 100) : 0;
+    // 2. Tarefas
+    const tarefasAbertas = await prisma.task.count({
+      where: { status: { not: "concluida" } },
+    });
+    const tarefasUrgentes = await prisma.task.count({
+      where: {
+        status: { not: "concluida" },
+        urgente: true,
+      },
+    });
 
-      const tarefasAbertas = tarefas.filter((t) => t.status !== "concluida").length;
-      const tarefasUrgentes = tarefas.filter((t) => t.status !== "concluida" && t.urgente).length;
-      const empilhadeirasDisponiveis = empilhadeiras.filter((e) => e.status === "disponivel").length;
+    // 3. Empilhadeiras
+    const totalEmpilhadeiras = await prisma.forklift.count();
+    const empilhadeirasDisponiveis = await prisma.forklift.count({
+      where: { status: "disponivel" },
+    });
 
-      const distanciaTotal = empilhadeiras.reduce((s, e) => s + (e.distanciaPercorridaHojeM || 0), 0);
-      const indiceIndireta = metricasTurno.indiceMovimentacaoIndiretaPct || 0;
+    // Soma das distâncias percorridas pelas empilhadeiras
+    const distanciaAgregada = await prisma.forklift.aggregate({
+      _sum: {
+        distanciaPercorridaHojeM: true,
+      },
+    });
+    const distanciaTotal = distanciaAgregada._sum.distanciaPercorridaHojeM || 0;
 
-      return res.json({
-        ocupacao: {
-          totalPosicoes,
-          ocupadas,
-          livres,
-          bloqueadas,
-          ocupacaoPct,
-        },
-        tarefas: {
-          abertas: tarefasAbertas,
-          urgentes: tarefasUrgentes,
-          concluidasNoTurno: metricasTurno.tarefasConcluidas || 0,
-        },
-        empilhadeiras: {
-          total: empilhadeiras.length,
-          disponiveis: empilhadeirasDisponiveis,
-          emTarefa: empilhadeiras.length - empilhadeirasDisponiveis,
-        },
-        indicadores: {
-          distanciaTotalPercorridaM: distanciaTotal,
-          tempoMedioPorMovimentacaoMin: metricasTurno.tempoMedioPorMovimentacaoMin || 0,
-          indiceMovimentacaoIndiretaPct: indiceIndireta,
-          eficienciaLogisticaPct: Math.max(
-            0,
-            100 - indiceIndireta - Math.round(bloqueadas / 2)
-          ),
-        },
-        caminhoesNoPatio: caminhoes.map((c) => ({
-          id: c.id,
-          placa: c.placa,
-          tipoOperacao: c.tipoOperacao,
-          horarioChegada: c.horarioChegada,
-          status: c.status,
-        })),
-      });
-    } catch (error) {
-      console.error("❌ Erro ao gerar dados do dashboard:", error);
-      return res.status(500).json({ erro: "Erro interno ao processar dashboard" });
-    }
-  });
+    // 4. Caminhões no Pátio
+    const caminhoes = await prisma.truck.findMany({
+      select: {
+        id: true,
+        placa: true,
+        tipoOperacao: true,
+        horarioChegada: true,
+        status: true,
+      },
+    });
 
-  return router;
-};
+    // 5. Métricas e Indicadores (Ajustar modelo de métricas se houver tabela própria)
+    // Usando fallback seguro para métricas de turno
+    const indiceIndireta = 0; 
+    const tempoMedio = 0;
+    const tarefasConcluidasTurno = await prisma.task.count({
+      where: { status: "concluida" },
+    });
+
+    return res.json({
+      ocupacao: {
+        totalPosicoes,
+        ocupadas,
+        livres,
+        bloqueadas,
+        ocupacaoPct,
+      },
+      tarefas: {
+        abertas: tarefasAbertas,
+        urgentes: tarefasUrgentes,
+        concluidasNoTurno: tarefasConcluidasTurno,
+      },
+      empilhadeiras: {
+        total: totalEmpilhadeiras,
+        disponiveis: empilhadeirasDisponiveis,
+        emTarefa: totalEmpilhadeiras - empilhadeirasDisponiveis,
+      },
+      indicadores: {
+        distanciaTotalPercorridaM: distanciaTotal,
+        tempoMedioPorMovimentacaoMin: tempoMedio,
+        indiceMovimentacaoIndiretaPct: indiceIndireta,
+        eficienciaLogisticaPct: Math.max(
+          0,
+          100 - indiceIndireta - Math.round(bloqueadas / 2)
+        ),
+      },
+      caminhoesNoPatio: caminhoes,
+    });
+  } catch (error) {
+    console.error("❌ Erro ao gerar dados do dashboard no banco:", error);
+    return res.status(500).json({ erro: "Erro interno ao processar dashboard" });
+  }
+});
+
+module.exports = router;
