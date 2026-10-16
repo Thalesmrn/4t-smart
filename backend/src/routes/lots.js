@@ -4,15 +4,9 @@ const prisma = require('../data/db');
 
 function normalizarLote(l) {
   const agora = new Date().toISOString();
-  
-  // Se o lote veio do banco com um código preenchido (sem ser UUID), usa ele;
-  // se o código for um UUID ou estiver vazio, gera o formato legível LOT-XXXX
-  const codigoLegivel = (l?.codigo && !l.codigo.includes('-')) 
-    ? l.codigo 
-    : `LOT-${l?.id ? l.id.slice(0, 5).toUpperCase() : Math.floor(1000 + Math.random() * 9000)}`;
+  const codigoLegivel = l?.codigo || `LOT-${l?.id ? l.id.slice(0, 5).toUpperCase() : '0000'}`;
 
   return {
-    // Sobrescrevemos a propriedade id com o código amigável para enganar o frontend
     id: codigoLegivel,
     idReal: l?.id,
     codigo: codigoLegivel,
@@ -21,30 +15,23 @@ function normalizarLote(l) {
     quantidadeBags: l?.quantidade ?? 0,
     pesoTotalKg: (l?.quantidade ?? 0) * 1000,
     pesoMedioBagKg: 1000,
-    dataCriacao: l?.createdAt || agora,
     criadoEm: l?.createdAt || agora,
-    atualizadoEm: l?.updatedAt || agora,
-    dataEntrada: l?.createdAt || agora
+    atualizadoEm: l?.updatedAt || agora
   };
 }
 
-// GET: Lista os lotes formatados
+// GET: Lista lotes
 router.get('/', async (req, res) => {
   try {
     const lotes = await prisma.lote.findMany();
-
-    if (lotes && lotes.length > 0) {
-      return res.json(lotes.map(normalizarLote));
-    }
-
-    res.json([normalizarLote({})]);
+    res.json(lotes.map(normalizarLote));
   } catch (error) {
-    console.error('❌ Erro ao buscar lotes no Supabase:', error);
-    res.json([normalizarLote({})]);
+    console.error('❌ Erro ao buscar lotes no banco:', error);
+    res.status(500).json({ erro: "Erro ao buscar lotes." });
   }
 });
 
-// POST: Grava novo lote no Supabase
+// POST: Grava novo lote
 router.post('/', async (req, res) => {
   try {
     const { codigo, produto, quantidade, quantidadeBags } = req.body;
@@ -62,7 +49,6 @@ router.post('/', async (req, res) => {
       }
     });
 
-    console.log('✅ Lote salvo com sucesso no PostgreSQL:', novoLote);
     res.status(201).json(normalizarLote(novoLote));
   } catch (error) {
     console.error('❌ Erro ao cadastrar lote via Prisma:', error);
