@@ -16,8 +16,15 @@ export default function Slotting() {
   const [erroSlotting, setErroSlotting] = useState(null);
 
   useEffect(() => {
-    api.empilhadeiras().then(setEmpilhadeiras).catch(() => {});
-    api.lotes().then(setLotes).catch(() => {});
+    api
+      .empilhadeiras()
+      .then((res) => setEmpilhadeiras(Array.isArray(res) ? res : []))
+      .catch(() => setEmpilhadeiras([]));
+
+    api
+      .lotes()
+      .then((res) => setLotes(Array.isArray(res) ? res : []))
+      .catch(() => setLotes([]));
   }, []);
 
   async function buscarSequencia() {
@@ -25,7 +32,7 @@ export default function Slotting() {
     setErroRota(null);
     try {
       const res = await api.sequenciaOtimizada(empSelecionada);
-      setRota(res);
+      setRota(res || {});
     } catch (e) {
       setErroRota(e.message);
     }
@@ -39,11 +46,25 @@ export default function Slotting() {
         priorizarExpedicaoRapida: priorizarExpedicao,
         precisaRebeneficio,
       });
-      setRecomendacoes(res);
+      setRecomendacoes(res || {});
     } catch (e) {
       setErroSlotting(e.message);
     }
   }
+
+  // Extrai a lista de recomendações com fallback seguro
+  const listaRecomendacoes = Array.isArray(recomendacoes)
+    ? recomendacoes
+    : Array.isArray(recomendacoes?.recomendacoes)
+    ? recomendacoes.recomendacoes
+    : Array.isArray(recomendacoes?.sugestoes)
+    ? recomendacoes.sugestoes
+    : [];
+
+  // Extrai a sequência de rotas otimizada com fallback seguro
+  const sequenciaOtimizada = Array.isArray(rota?.sequenciaOtimizada)
+    ? rota.sequenciaOtimizada
+    : [];
 
   return (
     <div className="space-y-6">
@@ -64,9 +85,9 @@ export default function Slotting() {
               className="border rounded-lg px-3 py-2 text-sm min-w-[220px]"
             >
               <option value="">Selecione...</option>
-              {empilhadeiras.map((e) => (
+              {(empilhadeiras || []).map((e) => (
                 <option key={e.id} value={e.id}>
-                  {e.nome}
+                  {e.nome || e.identificador || e.id}
                 </option>
               ))}
             </select>
@@ -82,36 +103,38 @@ export default function Slotting() {
 
         {erroRota && <ErrorBox message={erroRota} />}
 
-        {rota && rota.sequenciaOtimizada?.length > 0 && (
+        {rota && sequenciaOtimizada.length > 0 && (
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-slate-50 rounded-lg p-3">
                 <p className="text-xs text-slate-400">Rota otimizada</p>
-                <p className="font-bold text-brand-600">{rota.distanciaTotalOtimizadaM} m</p>
+                <p className="font-bold text-brand-600">{rota.distanciaTotalOtimizadaM || 0} m</p>
               </div>
               <div className="bg-slate-50 rounded-lg p-3">
                 <p className="text-xs text-slate-400">Rota não otimizada (FIFO)</p>
-                <p className="font-bold text-slate-500">{rota.distanciaTotalNaoOtimizadaM} m</p>
+                <p className="font-bold text-slate-500">{rota.distanciaTotalNaoOtimizadaM || 0} m</p>
               </div>
               <div className="bg-emerald-50 rounded-lg p-3">
                 <p className="text-xs text-slate-400">Economia estimada</p>
                 <p className="font-bold text-emerald-600">
-                  {rota.economiaEstimadaM} m ({rota.economiaEstimadaPct}%)
+                  {rota.economiaEstimadaM || 0} m ({rota.economiaEstimadaPct || 0}%)
                 </p>
               </div>
             </div>
-            <p className="text-xs text-slate-500 bg-slate-50 rounded-lg p-3">{rota.explicacao}</p>
+            {rota.explicacao && (
+              <p className="text-xs text-slate-500 bg-slate-50 rounded-lg p-3">{rota.explicacao}</p>
+            )}
             <ol className="space-y-2">
-              {rota.sequenciaOtimizada.map((s, idx) => (
-                <li key={s.tarefaId} className="flex items-center gap-3 text-sm border rounded-lg p-3">
+              {sequenciaOtimizada.map((s, idx) => (
+                <li key={s.tarefaId || idx} className="flex items-center gap-3 text-sm border rounded-lg p-3">
                   <span className="w-6 h-6 rounded-full bg-brand-500 text-white flex items-center justify-center text-xs font-bold shrink-0">
                     {idx + 1}
                   </span>
                   <div className="flex-1">
-                    <p className="font-medium">{s.descricao}</p>
+                    <p className="font-medium">{s.descricao || "Movimentação"}</p>
                     <p className="text-xs text-slate-400">
-                      deslocamento vazio: {Math.round(s.deslocamentoVazioM)} m · carregado:{" "}
-                      {Math.round(s.deslocamentoCarregadoM)} m
+                      deslocamento vazio: {Math.round(s.deslocamentoVazioM || 0)} m · carregado:{" "}
+                      {Math.round(s.deslocamentoCarregadoM || 0)} m
                     </p>
                   </div>
                 </li>
@@ -119,8 +142,8 @@ export default function Slotting() {
             </ol>
           </div>
         )}
-        {rota && rota.sequenciaOtimizada?.length === 0 && (
-          <p className="text-sm text-slate-400">{rota.mensagem}</p>
+        {rota && sequenciaOtimizada.length === 0 && (
+          <p className="text-sm text-slate-400">{rota.mensagem || "Nenhuma movimentação pendente encontrada para esta empilhadeira."}</p>
         )}
       </Card>
 
@@ -134,9 +157,9 @@ export default function Slotting() {
               className="border rounded-lg px-3 py-2 text-sm min-w-[220px]"
             >
               <option value="">Novo lote (sem consolidação)</option>
-              {lotes.map((l) => (
+              {(lotes || []).map((l) => (
                 <option key={l.id} value={l.id}>
-                  {l.id} — {l.produto}
+                  {l.codigo || l.id} — {l.produto}
                 </option>
               ))}
             </select>
@@ -169,16 +192,19 @@ export default function Slotting() {
 
         {recomendacoes && (
           <div className="space-y-3">
-            {recomendacoes.recomendacoes.map((r) => (
-              <div key={r.posicaoId} className="border rounded-lg p-4 flex items-start gap-4">
+            {listaRecomendacoes.length === 0 && (
+              <p className="text-sm text-slate-400">Nenhuma posição recomendada no momento.</p>
+            )}
+            {listaRecomendacoes.map((r, idx) => (
+              <div key={r.posicaoId || r.id || idx} className="border rounded-lg p-4 flex items-start gap-4">
                 <div className="w-10 h-10 rounded-full bg-brand-100 text-brand-700 font-bold flex items-center justify-center shrink-0">
-                  #{r.ranking}
+                  #{r.ranking || idx + 1}
                 </div>
                 <div>
                   <p className="font-semibold text-sm">
-                    {r.posicaoId} <Badge type="livre">score {r.score}</Badge>
+                    {r.posicaoId || r.posicaoSugerida || "Posição"} <Badge type="livre">score {r.score || 100}</Badge>
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">{r.explicacao}</p>
+                  <p className="text-xs text-slate-500 mt-1">{r.explicacao || r.motivo || "Melhor posição por critérios logísticos"}</p>
                 </div>
               </div>
             ))}
