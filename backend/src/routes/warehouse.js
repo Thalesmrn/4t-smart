@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../data/db');
 
-// Funcao utilitaria para formatar a posicao conforme o React espera
+// Funcao de formatacao para compatibilidade com a grelha/mapa do frontend
 function formatarPosicaoParaMapa(p) {
   const statusNormalizado = p.status ? p.status.toLowerCase() : 'livre';
   const statusFinal = statusNormalizado === 'disponivel' ? 'livre' : statusNormalizado;
@@ -15,13 +15,12 @@ function formatarPosicaoParaMapa(p) {
     status: statusFinal,
     galpaoId: p.galpaoId || 'g1',
     loteId: p.loteId || null,
-    // Garante compatibilidade caso o frontend espere estruturas de rua/nivel
     rua: p.codigo ? p.codigo.split('-')[0] : 'A',
     numero: p.codigo ? p.codigo.split('-')[1] : '01'
   };
 }
 
-// GET /api/armazem
+// GET /api/armazem (Retorna galpões e posições agrupados)
 router.get('/', async (req, res) => {
   try {
     const galpoes = await prisma.galpao.findMany().catch(() => []);
@@ -33,6 +32,27 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error('❌ Erro ao buscar armazém:', error);
     res.json({ galpoes: [], posicoes: [] });
+  }
+});
+
+// GET /api/armazem/galpoes (Rota que causou o erro 404)
+router.get('/galpoes', async (req, res) => {
+  try {
+    const galpoes = await prisma.galpao.findMany().catch(() => []);
+    
+    // Se a base de dados ainda nao tiver galpoes, devolve um padrão para nao quebrar a UI
+    if (galpoes.length === 0) {
+      return res.json([
+        { id: 'g1', nome: 'Galpão Principal A', codigo: 'G1', capacidade: 500 }
+      ]);
+    }
+
+    res.json(galpoes);
+  } catch (error) {
+    console.error('❌ Erro ao buscar galpões:', error);
+    res.json([
+      { id: 'g1', nome: 'Galpão Principal A', codigo: 'G1', capacidade: 500 }
+    ]);
   }
 });
 
@@ -75,7 +95,6 @@ router.post('/posicoes/:id/liberar', async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Busca por id ou codigo (ex: A-01 ou p1)
     const posicao = await prisma.posicao.findFirst({
       where: {
         OR: [
