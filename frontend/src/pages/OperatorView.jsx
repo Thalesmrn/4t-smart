@@ -9,12 +9,14 @@ export default function OperatorView() {
   const [erro, setErro] = useState(null);
   const [leitura, setLeitura] = useState(null);
   const [codigoDigitado, setCodigoDigitado] = useState("");
+  const [processando, setProcessando] = useState(false);
 
   useEffect(() => {
     api.empilhadeiras().then((emps) => {
-      setEmpilhadeiras(emps);
-      if (emps[0]) setEmpSelecionada(emps[0].id);
-    });
+      const lista = Array.isArray(emps) ? emps : [];
+      setEmpilhadeiras(lista);
+      if (lista[0]) setEmpSelecionada(lista[0].id);
+    }).catch(() => setEmpilhadeiras([]));
   }, []);
 
   useEffect(() => {
@@ -39,7 +41,7 @@ export default function OperatorView() {
     if (!dados?.tarefa) return;
     try {
       const codigoEsperado = dados.bigBag?.qrCode || "";
-      const codigo = codigoDigitado || codigoEsperado; // se não digitar nada, simula leitura correta
+      const codigo = codigoDigitado || codigoEsperado; // Se não digitar nada, assume o código correto
       const res = await api.lerCodigo(empSelecionada, {
         codigoLido: codigo,
         tarefaId: dados.tarefa.id,
@@ -52,118 +54,123 @@ export default function OperatorView() {
 
   async function confirmarConclusao() {
     if (!dados?.tarefa) return;
+    setProcessando(true);
     try {
+      // 1. Envia a confirmação para a API no backend
       await api.confirmarConclusao(empSelecionada, dados.tarefa.id);
+      
+      // 2. Limpa o estado local para atualizar a ecrã de imediato
+      setDados(null);
+      setLeitura(null);
       setCodigoDigitado("");
-      carregar();
+      
+      // 3. Busca a próxima tarefa atualizada no servidor
+      await carregar();
     } catch (e) {
       setErro(e.message);
+    } finally {
+      setProcessando(false);
     }
   }
 
   if (erro) return <ErrorBox message={erro} />;
 
   return (
-    <div className="max-w-sm mx-auto">
-      <div className="mb-4">
+    <div className="max-w-sm mx-auto space-y-4">
+      <div>
         <h2 className="text-xl font-bold text-slate-900">Monitor do Operador</h2>
         <p className="text-slate-500 text-xs mt-1">Interface simplificada para empilhadeiras</p>
       </div>
 
       <select
         value={empSelecionada}
-        onChange={(e) => setEmpSelecionada(e.target.value)}
-        className="w-full border rounded-lg px-3 py-2 text-sm mb-4"
+        onChange={(e) => {
+          setEmpSelecionada(e.target.value);
+          setDados(null);
+        }}
+        className="w-full border rounded-lg px-3 py-2 text-sm mb-4 bg-white"
       >
-        {empilhadeiras.map((e) => (
+        {(empilhadeiras || []).map((e) => (
           <option key={e.id} value={e.id}>
-            {e.nome} — {e.operador}
+            {e.nome || e.id} — {e.operador || "Operador"}
           </option>
         ))}
       </select>
 
-      {!dados && <Loading label="Carregando..." />}
+      {!dados && <Loading label="A carregar próxima tarefa..." />}
 
       {dados && !dados.tarefa && (
-        <div className="bg-white rounded-2xl shadow-md p-6 text-center">
-          <p className="text-4xl mb-2">✅</p>
-          <p className="text-sm text-slate-500">{dados.mensagem}</p>
+        <div className="bg-white rounded-2xl shadow-md p-6 text-center space-y-2">
+          <p className="text-4xl">✅</p>
+          <p className="text-sm font-semibold text-slate-700">Tudo em dia!</p>
+          <p className="text-xs text-slate-500">
+            {dados.mensagem || "Todas as tarefas desta empilhadeira foram concluídas."}
+          </p>
         </div>
       )}
 
       {dados && dados.tarefa && (
-        <div className="bg-white rounded-2xl shadow-md overflow-hidden">
-          <div className="bg-brand-600 text-white px-5 py-4">
-            <p className="text-xs uppercase tracking-wide opacity-80">Próxima tarefa</p>
-            <p className="text-lg font-bold">{dados.tarefa.tipo.replace("_", " ")}</p>
+        <div className="bg-white rounded-2xl shadow-md overflow-hidden border border-slate-100">
+          <div className="bg-brand-600 text-white px-5 py-4 flex justify-between items-center">
+            <div>
+              <p className="text-[10px] uppercase tracking-wide opacity-80">Próxima tarefa</p>
+              <p className="text-lg font-bold">
+                {(dados.tarefa.tipo || "MOVIMENTACAO").replace("_", " ")}
+              </p>
+            </div>
+            <span className="text-xs font-mono bg-brand-700 px-2 py-1 rounded">
+              #{dados.tarefa.id}
+            </span>
           </div>
 
           <div className="p-5 space-y-4">
-            <p className="text-sm font-medium">{dados.tarefa.descricao}</p>
+            <p className="text-sm font-medium text-slate-800">{dados.tarefa.descricao}</p>
 
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="bg-slate-50 rounded-lg p-3">
-                <p className="text-[10px] text-slate-400 uppercase">Origem</p>
-                <p className="font-semibold">{dados.tarefa.origemId}</p>
+              <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                <p className="text-[10px] text-slate-400 uppercase font-semibold">Origem</p>
+                <p className="font-bold text-slate-700">{dados.tarefa.origemId || "Doca 01"}</p>
               </div>
-              <div className="bg-slate-50 rounded-lg p-3">
-                <p className="text-[10px] text-slate-400 uppercase">Destino</p>
-                <p className="font-semibold">{dados.tarefa.destinoId || "a definir"}</p>
+              <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                <p className="text-[10px] text-slate-400 uppercase font-semibold">Destino</p>
+                <p className="font-bold text-slate-700">{dados.tarefa.destinoId || "A definir"}</p>
               </div>
             </div>
 
             {dados.bigBag && (
-              <div className="bg-slate-50 rounded-lg p-3 text-sm">
-                <p className="text-[10px] text-slate-400 uppercase">Big Bag</p>
-                <p className="font-semibold">{dados.bigBag.id} — {dados.bigBag.pesoKg} kg</p>
-                <p className="text-xs text-slate-400">QR esperado: {dados.bigBag.qrCode}</p>
+              <div className="bg-slate-50 rounded-lg p-3 text-sm border border-slate-100">
+                <p className="text-[10px] text-slate-400 uppercase font-semibold">Big Bag</p>
+                <p className="font-bold text-slate-800">{dados.bigBag.id} — {dados.bigBag.pesoKg} kg</p>
+                <p className="text-xs text-slate-500 font-mono mt-0.5">
+                  QR: {dados.bigBag.qrCode}
+                </p>
               </div>
             )}
 
             <div className="flex items-center gap-2">
-              <Badge type={dados.tarefa.status}>{dados.tarefa.status.replace("_", " ")}</Badge>
+              <Badge type={dados.tarefa.status || "PENDENTE"}>
+                {(dados.tarefa.status || "PENDENTE").replace("_", " ")}
+              </Badge>
               {dados.tarefa.urgente && <Badge type="bloqueada">urgente</Badge>}
               <span className="text-xs text-slate-400 ml-auto">
-                prioridade {dados.tarefa.prioridadeScore}
+                Prioridade: {dados.tarefa.prioridadeScore || 1}
               </span>
             </div>
 
             <div className="border-t pt-4 space-y-2">
-              <p className="text-xs text-slate-500">Simular leitura de RFID/QR Code:</p>
+              <p className="text-xs text-slate-500 font-medium">Simular leitura de RFID / QR Code:</p>
               <input
                 type="text"
-                placeholder={dados.bigBag?.qrCode || "Código do big bag"}
+                placeholder={dados.bigBag?.qrCode || "Código do Big Bag"}
                 value={codigoDigitado}
                 onChange={(e) => setCodigoDigitado(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm"
+                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50 focus:bg-white"
               />
               <button
                 onClick={simularLeitura}
-                className="w-full py-2 rounded-lg bg-slate-800 text-white text-sm font-semibold"
+                className="w-full py-2 rounded-lg bg-slate-800 text-white text-xs font-semibold hover:bg-slate-900 transition-colors"
               >
                 📷 Simular leitura
               </button>
 
-              {leitura && (
-                <p
-                  className={`text-xs rounded-lg p-2 ${
-                    leitura.valido ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-                  }`}
-                >
-                  {leitura.mensagem}
-                </p>
-              )}
-            </div>
-
-            <button
-              onClick={confirmarConclusao}
-              className="w-full py-3 rounded-lg bg-brand-500 text-white font-bold text-sm hover:bg-brand-600 transition-colors"
-            >
-              ✔ Confirmar Conclusão da Tarefa
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+              {leitura &&
