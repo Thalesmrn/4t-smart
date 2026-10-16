@@ -51,8 +51,11 @@ export const api = {
   registrarRecebimento: (loteId) =>
     request(`/lotes/${loteId}/registrar-recebimento`, { method: "POST" }),
 
-  sequenciaOtimizada: (empilhadeiraId) => request(`/roteirizacao/sequencia/${empilhadeiraId}`),
+  // 🔄 CORRIGIDO: Rota alinhada com o backend (/slotting/sequencia-otimizada)
+  sequenciaOtimizada: (empilhadeiraId) =>
+    request(`/slotting/sequencia-otimizada?empilhadeiraId=${empilhadeiraId}`),
 
+  // 🔄 CORRIGIDO: Suporta método POST para recomendar posições de slotting
   recomendarSlotting: (payload) =>
     request("/slotting/recomendar", { method: "POST", body: JSON.stringify(payload) }),
 
