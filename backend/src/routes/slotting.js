@@ -1,21 +1,26 @@
 const express = require('express');
+const router = express.Router();
+const prisma = require('../data/db');
 
-module.exports = function (store) {
-  const router = express.Router();
+router.get('/', async (req, res) => {
+  try {
+    const posicoes = await prisma.posicao.findMany();
+    res.json({ sugestoes: [], posicoes });
+  } catch (error) {
+    res.status(500).json({ erro: "Erro ao carregar dados de slotting." });
+  }
+});
 
-  // Rota de busca inicial de sugestões
-  router.get('/', (req, res) => {
-    res.json({
-      sugestoes: [],
-      ocupacao: []
+router.post('/recomendar', async (req, res) => {
+  try {
+    const posicoesLivres = await prisma.posicao.findMany({
+      where: { status: "DISPONIVEL" },
+      take: 5
     });
-  });
+    res.json({ sugestoes: posicoesLivres });
+  } catch (error) {
+    res.status(500).json({ erro: "Erro ao recomendar posições." });
+  }
+});
 
-  // POST /api/slotting/recomendar — usado pelo botão "Recomendar posições"
-  router.post('/recomendar', (req, res) => {
-    const { priorizarExpedicaoRapida, precisaRebeneficio } = req.body || {};
-    res.json(store.recomendarPosicoes({ priorizarExpedicaoRapida, precisaRebeneficio }));
-  });
-
-  return router;
-};
+module.exports = router;
