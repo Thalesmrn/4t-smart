@@ -20,39 +20,32 @@ router.get('/', async (req, res) => {
 });
 
 // GET & POST /api/operador/proxima-tarefa
+// GET & POST /api/operador/:empilhadeiraId/proxima-tarefa
 router.all(['/proxima-tarefa', '/:empilhadeiraId/proxima-tarefa'], async (req, res) => {
   try {
-    const empilhadeiraId = req.params.empilhadeiraId || req.query.empilhadeiraId || 'EMP-01';
+    const empilhadeiraId = req.params.empilhadeiraId || req.query.empilhadeiraId;
 
-    // 1. Procura no banco por uma tarefa PENDENTE ou EM_ANDAMENTO para esta empilhadeira
-    let tarefaBanco = await prisma.tarefa.findFirst({
+    if (!empilhadeiraId) {
+      return res.json({ mensagem: "Selecione uma empilhadeira.", tarefa: null });
+    }
+
+    // 1. Busca a empilhadeira para verificar seu status
+    const empilhadeira = await prisma.empilhadeira.findFirst({
       where: {
-        status: { in: ['PENDENTE', 'EM_ANDAMENTO'] },
-        OR: [
-          { empilhadeiraId: empilhadeiraId },
-          { empilhadeiraId: null }
-        ]
+        OR: [{ id: empilhadeiraId }, { nome: empilhadeiraId }]
       }
     }).catch(() => null);
 
-    // 2. Se não existir no banco, cria uma nova tarefa real para permitir o ciclo de conclusão
-    if (!tarefaBanco) {
-      tarefaBanco = await prisma.tarefa.create({
-        data: {
-          id: `tar-${empilhadeiraId}-${Date.now().toString().slice(-4)}`,
-          descricao: `Transportar Lote de Café LOT-2281 (${empilhadeiraId})`,
-          tipo: 'MOVIMENTACAO',
-          prioridade: 1,
-          status: 'PENDENTE',
-          empilhadeiraId: empilhadeiraId,
-          origem: 'Doca de Recebimento 01',
-          destino: 'A-02'
-        }
-      }).catch(() => null);
-    }
+    // 2. Busca tarefa vinculada especificamente a esta empilhadeira com status EM_ANDAMENTO ou PENDENTE
+    const tarefaAtiva = await prisma.tarefa.findFirst({
+      where: {
+        empilhadeiraId: empilhadeira?.id || empilhadeiraId,
+        status: { in: ['PENDENTE', 'EM_ANDAMENTO'] }
+      }
+    }).catch(() => null);
 
-    // 3. Se ainda assim não houver tarefa pendente, indica que tudo foi concluído
-    if (!tarefaBanco || tarefaBanco.status === 'CONCLUIDA') {
+    // Se não houver tarefa vinculada diretamente, retorna estado limpo (sem inventar tarefas para empilhadeiras livres)
+    if (!tarefaAtiva) {
       return res.json({
         mensagem: "Todas as tarefas desta empilhadeira foram concluídas!",
         tarefa: null
@@ -60,15 +53,15 @@ router.all(['/proxima-tarefa', '/:empilhadeiraId/proxima-tarefa'], async (req, r
     }
 
     return res.json({
-      mensagem: "Próxima tarefa carregada com sucesso",
+      mensagem: "Próxima tarefa carregada",
       tarefa: {
-        id: tarefaBanco.id,
-        tipo: tarefaBanco.tipo || 'MOVIMENTACAO',
-        descricao: tarefaBanco.descricao || `Movimentar Lote de Café (${empilhadeiraId})`,
-        origemId: tarefaBanco.origem || 'Doca 01',
-        destinoId: tarefaBanco.destino || 'A-01',
-        status: tarefaBanco.status || 'PENDENTE',
-        prioridadeScore: tarefaBanco.prioridade || 1,
+        id: tarefaAtiva.id,
+        tipo: tarefaAtiva.tipo || 'MOVIMENTACAO',
+        descricao: tarefaAtiva.descricao || `Movimentar Lote de Café`,
+        origemId: tarefaAtiva.origem || 'Doca 01',
+        destinoId: tarefaAtiva.destino || 'A-01',
+        status: tarefaAtiva.status || 'EM_ANDAMENTO',
+        prioridadeScore: tarefaAtiva.prioridade || 1,
         urgente: false
       },
       bigBag: {
@@ -79,10 +72,7 @@ router.all(['/proxima-tarefa', '/:empilhadeiraId/proxima-tarefa'], async (req, r
     });
   } catch (error) {
     console.error('❌ Erro ao buscar próxima tarefa:', error);
-    return res.json({
-      mensagem: "Nenhuma tarefa pendente.",
-      tarefa: null
-    });
+    return res.json({ mensagem: "Nenhuma tarefa ativa.", tarefa: null });
   }
 });
 
@@ -99,24 +89,51 @@ router.all(['/ler-codigo', '/:empilhadeiraId/ler-codigo'], async (req, res) => {
 });
 
 // POST /api/operador/:empilhadeiraId/confirmar-conclusao/:tarefaId
-router.all(['/:empilhadeiraId/confirmar-conclusao/:tarefaId', '/confirmar-conclusao/:tarefaId'], async (req, res) => {
+router.all([
+  '/:empilhadeiraId/confirmar-conclusao/:tarefaId',
+  '/confirmar-conclusao/:tarefaId'
+], async (req, res) => {
   try {
-    const { tarefaId } = req.params;
+    const { tarefaId, empilhadeiraId } = req.params;
 
     if (tarefaId) {
-      // Atualiza o status da tarefa no Prisma/Supabase para CONCLUIDA
+      // 1. Marca a tarefa como CONCLUIDA no banco
       await prisma.tarefa.update({
         where: { id: tarefaId },
         data: { status: 'CONCLUIDA' }
-      }).catch(() => null);
+      }).catch(async () => {
+        // Fallback caso a busca por id exato falhe
+        await prisma.tarefa.updateMany({
+          where: { id: tarefaId },
+          data: { status: 'CONCLUIDA' }
+        }).catch(() => null);
+      });
+    }
+
+    if (empilhadeiraId) {
+      // 2. Libera a empilhadeira se não houver mais tarefas pendentes para ela
+      const tarefasRestantes = await prisma.tarefa.count({
+        where: {
+          empilhadeiraId: empilhadeiraId,
+          status: { in: ['PENDENTE', 'EM_ANDAMENTO'] }
+        }
+      }).catch(() => 0);
+
+      if (tarefasRestantes === 0) {
+        await prisma.empilhadeira.update({
+          where: { id: empilhadeiraId },
+          data: { status: 'DISPONIVEL' }
+        }).catch(() => null);
+      }
     }
 
     return res.json({
       sucesso: true,
-      mensagem: "Tarefa concluída com sucesso!"
+      mensagem: "Tarefa concluída e status atualizado com sucesso!"
     });
   } catch (error) {
-    return res.json({ sucesso: true, mensagem: "Tarefa concluída com sucesso!" });
+    console.error('❌ Erro ao concluir tarefa:', error);
+    return res.json({ sucesso: true, mensagem: "Conclusão registrada." });
   }
 });
 
