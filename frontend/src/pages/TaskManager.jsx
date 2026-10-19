@@ -15,15 +15,18 @@ export default function Tarefas() {
 
   async function carregarDados() {
     setCarregando(true);
+    setErro(null);
     try {
       const [listTarefas, listEmp] = await Promise.all([
         api.tarefas().catch(() => []),
         api.empilhadeiras().catch(() => [])
       ]);
+      
+      // Garante rigorosamente que sejam Arrays para evitar erro de .length
       setTarefas(Array.isArray(listTarefas) ? listTarefas : []);
       setEmpilhadeiras(Array.isArray(listEmp) ? listEmp : []);
     } catch (e) {
-      setErro(e.message);
+      setErro(e.message || "Erro ao carregar dados.");
     } finally {
       setCarregando(false);
     }
@@ -34,15 +37,15 @@ export default function Tarefas() {
       setMensagem(null);
       const res = await api.atribuirAutomatico();
 
-      if (res.tarefas) {
+      if (res && Array.isArray(res.tarefas)) {
         setTarefas(res.tarefas);
       } else {
         await carregarDados();
       }
 
       setMensagem({
-        tipo: res.sucesso ? "sucesso" : "alerta",
-        texto: res.mensagem || "Processamento de atribuição concluído."
+        tipo: res?.sucesso ? "sucesso" : "alerta",
+        texto: res?.mensagem || "Processamento de atribuição concluído."
       });
     } catch (e) {
       setMensagem({
@@ -54,6 +57,10 @@ export default function Tarefas() {
 
   if (carregando) return <Loading label="A carregar tarefas e empilhadeiras..." />;
   if (erro) return <ErrorBox message={erro} />;
+
+  // Defesa contra undefined para garantir que o .length nunca falhe
+  const listaTarefas = Array.isArray(tarefas) ? tarefas : [];
+  const listaEmpilhadeiras = Array.isArray(empilhadeiras) ? empilhadeiras : [];
 
   return (
     <div className="space-y-6">
@@ -88,19 +95,19 @@ export default function Tarefas() {
       )}
 
       <Card title="Tarefas Registradas">
-        {tarefas.length === 0 ? (
+        {listaTarefas.length === 0 ? (
           <p className="text-sm text-slate-400 py-4 text-center">
             Nenhuma tarefa cadastrada no momento.
           </p>
         ) : (
           <div className="space-y-3">
-            {tarefas.map((t) => (
+            {listaTarefas.map((t) => (
               <div
-                key={t.id}
+                key={t.id || Math.random()}
                 className="flex items-center justify-between p-4 border rounded-xl bg-slate-50/50 flex-wrap gap-3"
               >
                 <div>
-                  <p className="font-semibold text-sm text-slate-800">{t.descricao}</p>
+                  <p className="font-semibold text-sm text-slate-800">{t.descricao || "Tarefa sem descrição"}</p>
                   <p className="text-xs text-slate-400 mt-1">
                     Origem: <span className="font-medium text-slate-600">{t.origem || "Doca"}</span> · 
                     Destino: <span className="font-medium text-slate-600">{t.destino || "A definir"}</span>
