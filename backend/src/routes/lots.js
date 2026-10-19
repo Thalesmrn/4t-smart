@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../data/db');
 
-// Auxiliar para padronizar o objeto retornado ao frontend
 function formatarLote(l) {
   let codigoAmigavel = l.codigo || l.id;
   if (!codigoAmigavel || String(codigoAmigavel).length > 20) {
@@ -25,20 +24,14 @@ function formatarLote(l) {
 // GET /api/lotes
 router.get('/', async (req, res) => {
   try {
-    const lotes = await prisma.lote.findMany({
-      orderBy: { createdAt: 'desc' }
-    }).catch(async () => {
-      return await prisma.lote.findMany().catch(() => []);
-    });
-
+    const lotes = await prisma.lote.findMany().catch(() => []);
     return res.json(lotes.map(formatarLote));
   } catch (error) {
-    console.error('❌ Erro no GET /api/lotes:', error);
     return res.json([]);
   }
 });
 
-// POST /api/lotes (Cadastrar Lote)
+// POST /api/lotes
 router.post('/', async (req, res) => {
   try {
     const body = req.body || {};
@@ -62,11 +55,11 @@ router.post('/', async (req, res) => {
       }
     });
 
-    console.log('✅ Lote salvo com sucesso no Supabase:', novoLote);
+    console.log('✅ Lote gravado com sucesso no Supabase:', novoLote);
     return res.json(formatarLote(novoLote));
 
   } catch (error) {
-    console.error('❌ ERRO CRÍTICO AO GRAVAR NO SUPABASE:', error.message);
+    console.error('❌ ERRO AO GRAVAR LOTE NO SUPABASE:', error.message);
     return res.status(500).json({ erro: `Falha no Supabase/Prisma: ${error.message}` });
   }
 });
