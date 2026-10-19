@@ -12,13 +12,13 @@ export default function Cadastros() {
   // Form Empilhadeira
   const [nomeEmp, setNomeEmp] = useState("");
   const [operadorEmp, setOperadorEmp] = useState("");
-  const [capacidadeEmp, setCapacidadeEmp] = useState("2500");
+  const [capacidadeEmp, setCapacidadeEmp] = useState("");
 
-  // Form Lote
-  const [produtoLote, setProdutoLote] = useState("Café comum");
-  const [qualidadeLote, setQualidadeLote] = useState("Tipo 2");
-  const [proprietarioLote, setProprietarioLote] = useState("Fazenda União");
-  const [sacasLote, setSacasLote] = useState("1000");
+  // Form Lote (Iniciando vazios com placeholders)
+  const [produtoLote, setProdutoLote] = useState("");
+  const [qualidadeLote, setQualidadeLote] = useState("");
+  const [proprietarioLote, setProprietarioLote] = useState("");
+  const [sacasLote, setSacasLote] = useState("");
 
   useEffect(() => {
     carregarDados();
@@ -48,13 +48,15 @@ export default function Cadastros() {
       setMensagem(null);
       const nova = await api.criarEmpilhadeira({
         nome: nomeEmp,
-        operador: operadorEmp || "Operador Responsável",
+        operador: operadorEmp.trim() || "Operador Responsável",
         capacidadeKg: parseInt(capacidadeEmp, 10) || 2500
       });
-      setEmpilhadeiras((prev) => [...prev, nova]);
+      
       setNomeEmp("");
       setOperadorEmp("");
+      setCapacidadeEmp("");
       setMensagem({ tipo: "sucesso", texto: "Empilhadeira cadastrada com sucesso!" });
+      await carregarDados();
     } catch (err) {
       setMensagem({ tipo: "erro", texto: err.message || "Erro ao cadastrar empilhadeira." });
     }
@@ -62,31 +64,32 @@ export default function Cadastros() {
 
   async function handleCriarLote(e) {
     e.preventDefault();
+    if (!produtoLote.trim()) {
+      setMensagem({ tipo: "erro", texto: "Por favor, informe o nome do produto." });
+      return;
+    }
+
     try {
       setMensagem(null);
       const payload = {
-        produto: produtoLote || "Café comum",
-        qualidade: qualidadeLote || "Tipo 2",
-        proprietario: proprietarioLote || "Fazenda União",
+        produto: produtoLote.trim(),
+        qualidade: qualidadeLote.trim() || "Tipo 2",
+        proprietario: proprietarioLote.trim() || "Fazenda União",
         quantidadeSacas: parseInt(sacasLote, 10) || 1000
       };
 
-      const novoLote = await api.criarLote(payload);
-
-      // Adiciona o novo lote retornado diretamente na lista do estado do React
-      if (novoLote) {
-        setLotes((prev) => [novoLote, ...prev]);
-      } else {
-        await carregarDados();
-      }
+      await api.criarLote(payload);
 
       // Limpa os campos do formulário
-      setProdutoLote("Café comum");
-      setQualidadeLote("Tipo 2");
-      setProprietarioLote("Fazenda União");
-      setSacasLote("1000");
+      setProdutoLote("");
+      setQualidadeLote("");
+      setProprietarioLote("");
+      setSacasLote("");
 
       setMensagem({ tipo: "sucesso", texto: "Lote de café cadastrado com sucesso!" });
+      
+      // Recarrega do banco para garantir persistência real
+      await carregarDados();
     } catch (err) {
       setMensagem({ tipo: "erro", texto: err.message || "Erro ao cadastrar lote de café." });
     }
@@ -129,7 +132,7 @@ export default function Cadastros() {
                 placeholder="Ex: EMP-05 (Elétrica 3.0t)"
                 value={nomeEmp}
                 onChange={(e) => setNomeEmp(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50"
+                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50 focus:bg-white"
                 required
               />
             </div>
@@ -139,10 +142,10 @@ export default function Cadastros() {
               </label>
               <input
                 type="text"
-                placeholder="Nome do operador"
+                placeholder="Ex: Carlos Silva"
                 value={operadorEmp}
                 onChange={(e) => setOperadorEmp(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50"
+                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50 focus:bg-white"
               />
             </div>
             <div>
@@ -151,9 +154,10 @@ export default function Cadastros() {
               </label>
               <input
                 type="number"
+                placeholder="Ex: 2500"
                 value={capacidadeEmp}
                 onChange={(e) => setCapacidadeEmp(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50"
+                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50 focus:bg-white"
               />
             </div>
             <button
@@ -184,9 +188,10 @@ export default function Cadastros() {
               </label>
               <input
                 type="text"
+                placeholder="Ex: Café Arábica Especial"
                 value={produtoLote}
                 onChange={(e) => setProdutoLote(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50"
+                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50 focus:bg-white"
                 required
               />
             </div>
@@ -196,9 +201,10 @@ export default function Cadastros() {
               </label>
               <input
                 type="text"
+                placeholder="Ex: Tipo 2 / Bebida Mole"
                 value={qualidadeLote}
                 onChange={(e) => setQualidadeLote(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50"
+                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50 focus:bg-white"
               />
             </div>
             <div>
@@ -207,9 +213,10 @@ export default function Cadastros() {
               </label>
               <input
                 type="text"
+                placeholder="Ex: Fazenda União"
                 value={proprietarioLote}
                 onChange={(e) => setProprietarioLote(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50"
+                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50 focus:bg-white"
               />
             </div>
             <div>
@@ -218,9 +225,10 @@ export default function Cadastros() {
               </label>
               <input
                 type="number"
+                placeholder="Ex: 1000"
                 value={sacasLote}
                 onChange={(e) => setSacasLote(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50"
+                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50 focus:bg-white"
               />
             </div>
             <button
@@ -233,14 +241,20 @@ export default function Cadastros() {
 
           <div className="mt-6 border-t pt-4 space-y-2">
             <p className="text-xs font-semibold text-slate-500">Lotes cadastrados ({lotes.length})</p>
-            {lotes.map((l) => (
-              <div key={l.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg text-sm">
-                <span className="font-medium text-slate-700">
-                  {l.codigo || l.id} — {l.produto}
-                </span>
-                <Badge type={l.status || "DISPONIVEL"}>{l.status || "DISPONIVEL"}</Badge>
-              </div>
-            ))}
+            {lotes.length === 0 ? (
+              <p className="text-xs text-slate-400 py-2">Nenhum lote cadastrado.</p>
+            ) : (
+              lotes.map((l) => (
+                <div key={l.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg text-sm">
+                  <span className="font-medium text-slate-700">
+                    {l.codigo || l.id} — {l.produto}
+                  </span>
+                  <Badge type={l.status || "AGUARDANDO_DESCARGA"}>
+                    {l.status || "AGUARDANDO_DESCARGA"}
+                  </Badge>
+                </div>
+              ))
+            )}
           </div>
         </Card>
       </div>
