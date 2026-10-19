@@ -2,11 +2,11 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../data/db');
 
-// GET /api/tarefas (Lista todas as tarefas)
+// GET /api/tarefas (Sempre retorna um Array)
 router.get('/', async (req, res) => {
   try {
     const tarefas = await prisma.tarefa.findMany().catch(() => []);
-    return res.json(tarefas);
+    return res.json(Array.isArray(tarefas) ? tarefas : []);
   } catch (error) {
     console.error('❌ Erro ao buscar tarefas:', error);
     return res.json([]);
@@ -16,31 +16,32 @@ router.get('/', async (req, res) => {
 // ALL /api/tarefas/atribuir-automatico
 router.all('/atribuir-automatico', async (req, res) => {
   try {
-    // 1. Busca tarefas com status PENDENTE
     const tarefasPendentes = await prisma.tarefa.findMany({
       where: { status: 'PENDENTE' }
     }).catch(() => []);
 
-    // 🔴 TRATATIVA: Se não houver tarefas pendentes
-    if (tarefasPendentes.length === 0) {
+    if (!Array.isArray(tarefasPendentes) || tarefasPendentes.length === 0) {
+      const todasTarefas = await prisma.tarefa.findMany().catch(() => []);
       return res.json({
         sucesso: true,
         mensagem: "Nenhuma tarefa pendente encontrada para atribuição automática.",
-        tarefasAtribuidas: 0
+        tarefasAtribuidas: 0,
+        tarefas: Array.isArray(todasTarefas) ? todasTarefas : []
       });
     }
 
-    // 2. Busca empilhadeiras disponíveis
     const empilhadeiras = await prisma.empilhadeira.findMany().catch(() => []);
 
-    if (empilhadeiras.length === 0) {
+    if (!Array.isArray(empilhadeiras) || empilhadeiras.length === 0) {
+      const todasTarefas = await prisma.tarefa.findMany().catch(() => []);
       return res.json({
         sucesso: false,
-        mensagem: "Nenhuma empilhadeira cadastrada ou disponível no momento."
+        mensagem: "Nenhuma empilhadeira cadastrada ou disponível para atribuição.",
+        tarefas: Array.isArray(todasTarefas) ? todasTarefas : []
       });
     }
 
-    // 3. Distribuição automática entre a frota
+    // Distribuição automática
     for (let i = 0; i < tarefasPendentes.length; i++) {
       const emp = empilhadeiras[i % empilhadeiras.length];
       await prisma.tarefa.update({
@@ -57,18 +58,19 @@ router.all('/atribuir-automatico', async (req, res) => {
     return res.json({
       sucesso: true,
       mensagem: `${tarefasPendentes.length} tarefa(s) atribuída(s) com sucesso às empilhadeiras!`,
-      tarefas: tarefasAtualizadas
+      tarefas: Array.isArray(tarefasAtualizadas) ? tarefasAtualizadas : []
     });
   } catch (error) {
     console.error('❌ Erro na atribuição automática:', error);
     return res.json({
       sucesso: false,
-      mensagem: "Não foi possível concluir a atribuição automática."
+      mensagem: "Erro ao processar atribuição automática.",
+      tarefas: []
     });
   }
 });
 
-// ALL /api/tarefas/:id/atribuir (Atribuição manual)
+// ALL /api/tarefas/:id/atribuir
 router.all('/:id/atribuir', async (req, res) => {
   try {
     const { id } = req.params;
@@ -77,10 +79,7 @@ router.all('/:id/atribuir', async (req, res) => {
     if (id && empilhadeiraId) {
       await prisma.tarefa.update({
         where: { id },
-        data: {
-          empilhadeiraId,
-          status: 'EM_ANDAMENTO'
-        }
+        data: { empilhadeiraId, status: 'EM_ANDAMENTO' }
       }).catch(() => null);
     }
 
@@ -90,7 +89,7 @@ router.all('/:id/atribuir', async (req, res) => {
   }
 });
 
-// ALL /api/tarefas/:id/concluir (Conclusão manual)
+// ALL /api/tarefas/:id/concluir
 router.all('/:id/concluir', async (req, res) => {
   try {
     const { id } = req.params;
