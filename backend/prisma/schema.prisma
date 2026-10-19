@@ -33,10 +33,12 @@ model Posicao {
 model Lote {
   id         String    @id @default(uuid())
   codigo     String    @unique
-  produto    String
-  quantidade Int
-  status     String    @default("DISPONIVEL")
-  posicoes   Posicao[]
+  produto      String
+  qualidade    String    @default("Tipo 2")
+  proprietario String    @default("Fazenda União")
+  quantidade   Int
+  status       String    @default("DISPONIVEL")
+  posicoes     Posicao[]
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 }
@@ -61,3 +63,4 @@ model Empilhadeira {
   status        String  @default("DISPONIVEL")
   bateria       Int     @default(100)
 }
+
