@@ -23,63 +23,47 @@ router.get('/', async (req, res) => {
 // GET & POST /api/operador/:empilhadeiraId/proxima-tarefa
 router.all(['/proxima-tarefa', '/:empilhadeiraId/proxima-tarefa'], async (req, res) => {
   try {
-    const empilhadeiraId = req.params.empilhadeiraId || req.query.empilhadeiraId;
+    const empParam = req.params.empilhadeiraId || req.query.empilhadeiraId;
 
-    if (!empilhadeiraId) {
+    if (!empParam) {
       return res.json({ mensagem: "Selecione uma empilhadeira.", tarefa: null });
     }
 
-    // 1. Busca a empilhadeira pelo id ou nome
-    const empilhadeira = await prisma.empilhadeira.findFirst({
-      where: {
-        OR: [{ id: empilhadeiraId }, { nome: empilhadeiraId }]
-      }
-    }).catch(() => null);
+    // Normaliza variações de ID (ex: "EMP-01", "emp01", "emp1", "EMP-1")
+    const idLimpo = empParam.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-    const targetId = empilhadeira?.id || empilhadeiraId;
-
-    // 2. Busca estritamente tarefas atribuídas A ESTA empilhadeira específica
-    const tarefaAtiva = await prisma.tarefa.findFirst({
+    // 1. Busca todas as tarefas ativas do banco
+    const tarefasBanco = await prisma.tarefa.findMany({
       where: {
-        empilhadeiraId: targetId,
         status: { in: ['PENDENTE', 'EM_ANDAMENTO', 'ATRIBUIDA'] }
       }
-    }).catch(() => null);
+    }).catch(() => []);
 
-    // Se NÃO tem tarefa vinculada explicitamente a esta empilhadeira, ela é/continua LIVRE
-    if (!tarefaAtiva) {
-      // Atualiza o status da empilhadeira para DISPONIVEL se estiver como EM_USO
-      if (empilhadeira && empilhadeira.status !== 'DISPONIVEL') {
-        await prisma.empilhadeira.update({
-          where: { id: empilhadeira.id },
-          data: { status: 'DISPONIVEL' }
-        }).catch(() => null);
-      }
+    // 2. Filtra ESTRITAMENTE as tarefas pertencentes a ESTA empilhadeira
+    const tarefaEmpilhadeira = tarefasBanco.find(t => {
+      if (!t.empilhadeiraId) return false;
+      const targetLimpo = t.empilhadeiraId.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return targetLimpo === idLimpo || t.empilhadeiraId === empParam;
+    });
 
+    // 🔴 SE NÃO HOUVER TAREFA VINCULADA: Retorna tarefa: null SEM criar dados fakes!
+    if (!tarefaEmpilhadeira) {
       return res.json({
         mensagem: "Nenhuma tarefa atribuída a esta empilhadeira.",
         tarefa: null
       });
     }
 
-    // Atualiza status da empilhadeira para EM_USO se houver tarefa pendente
-    if (empilhadeira && empilhadeira.status !== 'EM_USO') {
-      await prisma.empilhadeira.update({
-        where: { id: empilhadeira.id },
-        data: { status: 'EM_USO' }
-      }).catch(() => null);
-    }
-
     return res.json({
       mensagem: "Próxima tarefa em andamento",
       tarefa: {
-        id: tarefaAtiva.id,
-        tipo: tarefaAtiva.tipo || 'MOVIMENTACAO',
-        descricao: tarefaAtiva.descricao || `Movimentar Lote de Café`,
-        origemId: tarefaAtiva.origem || 'Doca 01',
-        destinoId: tarefaAtiva.destino || 'A-01',
-        status: tarefaAtiva.status || 'EM_ANDAMENTO',
-        prioridadeScore: tarefaAtiva.prioridade || 1,
+        id: tarefaEmpilhadeira.id,
+        tipo: tarefaEmpilhadeira.tipo || 'MOVIMENTACAO',
+        descricao: tarefaEmpilhadeira.descricao || `Movimentar Lote de Café`,
+        origemId: tarefaEmpilhadeira.origem || 'Doca 01',
+        destinoId: tarefaEmpilhadeira.destino || 'A-01',
+        status: tarefaEmpilhadeira.status || 'EM_ANDAMENTO',
+        prioridadeScore: tarefaEmpilhadeira.prioridade || 1,
         urgente: false
       },
       bigBag: {
@@ -126,18 +110,23 @@ router.all([
       });
     }
 
-    // Libera a empilhadeira se não existirem outras tarefas em aberto para ela
+    // Libera a empilhadeira se não houverem mais tarefas pendentes
     if (empilhadeiraId) {
-      const tarefasRestantes = await prisma.tarefa.count({
-        where: {
-          empilhadeiraId: empilhadeiraId,
-          status: { in: ['PENDENTE', 'EM_ANDAMENTO', 'ATRIBUIDA'] }
-        }
-      }).catch(() => 0);
+      const idLimpo = empilhadeiraId.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const tarefasRestantes = await prisma.tarefa.findMany({
+        where: { status: { in: ['PENDENTE', 'EM_ANDAMENTO', 'ATRIBUIDA'] } }
+      }).catch(() => []);
 
-      if (tarefasRestantes === 0) {
-        await prisma.empilhadeira.update({
-          where: { id: empilhadeiraId },
+      const aindaTem = tarefasRestantes.some(t => {
+        if (!t.empilhadeiraId) return false;
+        return t.empilhadeiraId.toLowerCase().replace(/[^a-z0-9]/g, '') === idLimpo;
+      });
+
+      if (!aindaTem) {
+        await prisma.empilhadeira.updateMany({
+          where: {
+            OR: [{ id: empilhadeiraId }, { nome: empilhadeiraId }]
+          },
           data: { status: 'DISPONIVEL' }
         }).catch(() => null);
       }
