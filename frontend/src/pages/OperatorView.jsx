@@ -22,7 +22,7 @@ export default function OperatorView() {
   useEffect(() => {
     if (!empSelecionada) return;
     carregar();
-    const interval = setInterval(carregar, 6000);
+    const interval = setInterval(carregar, 5000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [empSelecionada]);
@@ -41,7 +41,7 @@ export default function OperatorView() {
     if (!dados?.tarefa) return;
     try {
       const codigoEsperado = dados.bigBag?.qrCode || "";
-      const codigo = codigoDigitado || codigoEsperado; // Se não digitar nada, assume o código correto
+      const codigo = codigoDigitado || codigoEsperado;
       const res = await api.lerCodigo(empSelecionada, {
         codigoLido: codigo,
         tarefaId: dados.tarefa.id,
@@ -56,15 +56,13 @@ export default function OperatorView() {
     if (!dados?.tarefa) return;
     setProcessando(true);
     try {
-      // 1. Envia a confirmação para a API no backend
       await api.confirmarConclusao(empSelecionada, dados.tarefa.id);
       
-      // 2. Limpa o estado local para atualizar a ecrã de imediato
+      // Limpa os dados visuais antes de recarregar
       setDados(null);
       setLeitura(null);
       setCodigoDigitado("");
       
-      // 3. Busca a próxima tarefa atualizada no servidor
       await carregar();
     } catch (e) {
       setErro(e.message);
@@ -92,19 +90,19 @@ export default function OperatorView() {
       >
         {(empilhadeiras || []).map((e) => (
           <option key={e.id} value={e.id}>
-            {e.nome || e.id} — {e.operador || "Operador"}
+            {e.nome || e.id} — {e.operador || "Operador"} ({e.status || "LIVRE"})
           </option>
         ))}
       </select>
 
-      {!dados && <Loading label="A carregar próxima tarefa..." />}
+      {!dados && <Loading label="A verificar tarefas..." />}
 
       {dados && !dados.tarefa && (
         <div className="bg-white rounded-2xl shadow-md p-6 text-center space-y-2">
           <p className="text-4xl">✅</p>
-          <p className="text-sm font-semibold text-slate-700">Tudo em dia!</p>
+          <p className="text-sm font-semibold text-slate-700">Empilhadeira Livre / Tudo Concluído!</p>
           <p className="text-xs text-slate-500">
-            {dados.mensagem || "Todas as tarefas desta empilhadeira foram concluídas."}
+            {dados.mensagem || "Não há tarefas pendentes para esta empilhadeira."}
           </p>
         </div>
       )}
@@ -113,7 +111,7 @@ export default function OperatorView() {
         <div className="bg-white rounded-2xl shadow-md overflow-hidden border border-slate-100">
           <div className="bg-brand-600 text-white px-5 py-4 flex justify-between items-center">
             <div>
-              <p className="text-[10px] uppercase tracking-wide opacity-80">Próxima tarefa</p>
+              <p className="text-[10px] uppercase tracking-wide opacity-80">Tarefa em Execução</p>
               <p className="text-lg font-bold">
                 {(dados.tarefa.tipo || "MOVIMENTACAO").replace("_", " ")}
               </p>
@@ -151,10 +149,6 @@ export default function OperatorView() {
               <Badge type={dados.tarefa.status || "PENDENTE"}>
                 {(dados.tarefa.status || "PENDENTE").replace("_", " ")}
               </Badge>
-              {dados.tarefa.urgente && <Badge type="bloqueada">urgente</Badge>}
-              <span className="text-xs text-slate-400 ml-auto">
-                Prioridade: {dados.tarefa.prioridadeScore || 1}
-              </span>
             </div>
 
             <div className="border-t pt-4 space-y-2">
@@ -173,4 +167,29 @@ export default function OperatorView() {
                 📷 Simular leitura
               </button>
 
-              {leitura &&
+              {leitura && (
+                <p
+                  className={`text-xs rounded-lg p-2.5 font-medium ${
+                    leitura.valido || leitura.sucesso
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      : "bg-red-50 text-red-700 border border-red-200"
+                  }`}
+                >
+                  {leitura.mensagem}
+                </p>
+              )}
+            </div>
+
+            <button
+              onClick={confirmarConclusao}
+              disabled={processando}
+              className="w-full py-3 rounded-lg bg-brand-500 text-white font-bold text-sm hover:bg-brand-600 active:scale-[0.98] disabled:opacity-50 transition-all shadow-sm"
+            >
+              {processando ? "A concluir..." : "✔ Confirmar Conclusão da Tarefa"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
