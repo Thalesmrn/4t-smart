@@ -11,18 +11,31 @@ export default function OperatorView() {
   const [codigoDigitado, setCodigoDigitado] = useState("");
   const [processando, setProcessando] = useState(false);
 
-  useEffect(() => {
-    api.empilhadeiras().then((emps) => {
+  async function carregarEmpilhadeiras() {
+    try {
+      const emps = await api.empilhadeiras().catch(() => []);
       const lista = Array.isArray(emps) ? emps : [];
       setEmpilhadeiras(lista);
-      if (lista[0]) setEmpSelecionada(lista[0].id);
-    }).catch(() => setEmpilhadeiras([]));
+      if (!empSelecionada && lista[0]) {
+        setEmpSelecionada(lista[0].id);
+      }
+    } catch (e) {
+      setEmpilhadeiras([]);
+    }
+  }
+
+  useEffect(() => {
+    carregarEmpilhadeiras();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (!empSelecionada) return;
     carregar();
-    const interval = setInterval(carregar, 5000);
+    const interval = setInterval(() => {
+      carregar();
+      carregarEmpilhadeiras();
+    }, 5000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [empSelecionada]);
@@ -58,12 +71,12 @@ export default function OperatorView() {
     try {
       await api.confirmarConclusao(empSelecionada, dados.tarefa.id);
       
-      // Limpa os dados visuais antes de recarregar
+      // Reseta estado e recarrega dados + lista de empilhadeiras atualizada
       setDados(null);
       setLeitura(null);
       setCodigoDigitado("");
       
-      await carregar();
+      await Promise.all([carregar(), carregarEmpilhadeiras()]);
     } catch (e) {
       setErro(e.message);
     } finally {
@@ -90,7 +103,7 @@ export default function OperatorView() {
       >
         {(empilhadeiras || []).map((e) => (
           <option key={e.id} value={e.id}>
-            {e.nome || e.id} — {e.operador || "Operador"} ({e.status || "LIVRE"})
+            {e.nome || e.id} — {e.operador || "Operador"} ({e.status || "DISPONIVEL"})
           </option>
         ))}
       </select>
@@ -100,9 +113,9 @@ export default function OperatorView() {
       {dados && !dados.tarefa && (
         <div className="bg-white rounded-2xl shadow-md p-6 text-center space-y-2">
           <p className="text-4xl">✅</p>
-          <p className="text-sm font-semibold text-slate-700">Empilhadeira Livre / Tudo Concluído!</p>
+          <p className="text-sm font-semibold text-slate-700">Empilhadeira Livre!</p>
           <p className="text-xs text-slate-500">
-            {dados.mensagem || "Não há tarefas pendentes para esta empilhadeira."}
+            {dados.mensagem || "Não há tarefas pendentes atribuídas a esta empilhadeira."}
           </p>
         </div>
       )}
