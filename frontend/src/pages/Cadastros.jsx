@@ -14,7 +14,7 @@ export default function Cadastros() {
   const [operadorEmp, setOperadorEmp] = useState("");
   const [capacidadeEmp, setCapacidadeEmp] = useState("");
 
-  // Form Lote (Campos vazios usando placeholders)
+  // Form Lote (Iniciando vazios com placeholders)
   const [produtoLote, setProdutoLote] = useState("");
   const [qualidadeLote, setQualidadeLote] = useState("");
   const [proprietarioLote, setProprietarioLote] = useState("");
@@ -46,7 +46,7 @@ export default function Cadastros() {
     if (!nomeEmp.trim()) return;
     try {
       setMensagem(null);
-      await api.criarEmpilhadeira({
+      const nova = await api.criarEmpilhadeira({
         nome: nomeEmp,
         operador: operadorEmp.trim() || "Operador Responsável",
         capacidadeKg: parseInt(capacidadeEmp, 10) || 2500
@@ -80,7 +80,7 @@ export default function Cadastros() {
 
       await api.criarLote(payload);
 
-      // Limpa os campos após o envio
+      // Limpa os campos do formulário
       setProdutoLote("");
       setQualidadeLote("");
       setProprietarioLote("");
@@ -88,7 +88,7 @@ export default function Cadastros() {
 
       setMensagem({ tipo: "sucesso", texto: "Lote de café cadastrado com sucesso!" });
       
-      // Recarrega os dados do Supabase
+      // Recarrega do banco para garantir persistência real
       await carregarDados();
     } catch (err) {
       setMensagem({ tipo: "erro", texto: err.message || "Erro ao cadastrar lote de café." });
