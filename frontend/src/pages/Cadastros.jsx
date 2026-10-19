@@ -1,265 +1,246 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
-import { Card, Badge, ErrorBox } from "../components/Common.jsx";
-
-function Field({ label, children }) {
-  return (
-    <label className="block text-sm mb-3">
-      <span className="text-xs text-slate-500 block mb-1">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-const inputCls = "w-full border rounded-lg px-3 py-2 text-sm";
+import { Loading, ErrorBox, Badge, Card } from "../components/Common.jsx";
 
 export default function Cadastros() {
   const [empilhadeiras, setEmpilhadeiras] = useState([]);
   const [lotes, setLotes] = useState([]);
+  const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(null);
+  const [mensagem, setMensagem] = useState(null);
 
-  // formulário empilhadeira
+  // Form Empilhadeira
   const [nomeEmp, setNomeEmp] = useState("");
   const [operadorEmp, setOperadorEmp] = useState("");
   const [capacidadeEmp, setCapacidadeEmp] = useState("2500");
-  const [salvandoEmp, setSalvandoEmp] = useState(false);
-  const [sucessoEmp, setSucessoEmp] = useState(null);
 
-  // formulário lote
-  const [produtoLote, setProdutoLote] = useState("");
-  const [qualidadeLote, setQualidadeLote] = useState("");
-  const [proprietarioLote, setProprietarioLote] = useState("");
-  const [sacasLote, setSacasLote] = useState("");
-  const [salvandoLote, setSalvandoLote] = useState(false);
-  const [sucessoLote, setSucessoLote] = useState(null);
-  const [registrandoId, setRegistrandoId] = useState(null);
-
-  async function carregar() {
-    try {
-      const [emps, lts] = await Promise.all([api.empilhadeiras(), api.lotes()]);
-      setEmpilhadeiras(emps);
-      setLotes(lts);
-    } catch (e) {
-      setErro(e.message);
-    }
-  }
+  // Form Lote
+  const [produtoLote, setProdutoLote] = useState("Café comum");
+  const [qualidadeLote, setQualidadeLote] = useState("Tipo 2");
+  const [proprietarioLote, setProprietarioLote] = useState("Fazenda União");
+  const [sacasLote, setSacasLote] = useState("1000");
 
   useEffect(() => {
-    carregar();
+    carregarDados();
   }, []);
 
-  async function cadastrarEmpilhadeira(e) {
-    e.preventDefault();
-    setSalvandoEmp(true);
-    setSucessoEmp(null);
+  async function carregarDados() {
+    setCarregando(true);
+    setErro(null);
     try {
+      const [listEmp, listLotes] = await Promise.all([
+        api.empilhadeiras().catch(() => []),
+        api.lotes().catch(() => [])
+      ]);
+      setEmpilhadeiras(Array.isArray(listEmp) ? listEmp : []);
+      setLotes(Array.isArray(listLotes) ? listLotes : []);
+    } catch (e) {
+      setErro(e.message || "Erro ao carregar dados.");
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  async function handleCriarEmpilhadeira(e) {
+    e.preventDefault();
+    if (!nomeEmp.trim()) return;
+    try {
+      setMensagem(null);
       const nova = await api.criarEmpilhadeira({
         nome: nomeEmp,
-        operador: operadorEmp,
-        capacidadeKg: capacidadeEmp,
+        operador: operadorEmp || "Operador Responsável",
+        capacidadeKg: parseInt(capacidadeEmp, 10) || 2500
       });
-      setSucessoEmp(`${nova.nome} cadastrada com sucesso (${nova.id}).`);
+      setEmpilhadeiras((prev) => [...prev, nova]);
       setNomeEmp("");
       setOperadorEmp("");
-      setCapacidadeEmp("2500");
-      carregar();
+      setMensagem({ tipo: "sucesso", texto: "Empilhadeira cadastrada com sucesso!" });
     } catch (err) {
-      setErro(err.message);
-    } finally {
-      setSalvandoEmp(false);
+      setMensagem({ tipo: "erro", texto: err.message || "Erro ao cadastrar empilhadeira." });
     }
   }
 
-  async function cadastrarLote(e) {
+  async function handleCriarLote(e) {
     e.preventDefault();
-    setSalvandoLote(true);
-    setSucessoLote(null);
     try {
-      const novo = await api.criarLote({
-        produto: produtoLote,
-        qualidade: qualidadeLote,
-        proprietario: proprietarioLote,
-        sacas: sacasLote,
-      });
-      setSucessoLote(`${novo.id} — ${novo.produto} cadastrado como "aguardando descarga".`);
-      setProdutoLote("");
-      setQualidadeLote("");
-      setProprietarioLote("");
-      setSacasLote("");
-      carregar();
+      setMensagem(null);
+      const payload = {
+        produto: produtoLote || "Café comum",
+        qualidade: qualidadeLote || "Tipo 2",
+        proprietario: proprietarioLote || "Fazenda União",
+        quantidadeSacas: parseInt(sacasLote, 10) || 1000
+      };
+
+      const novoLote = await api.criarLote(payload);
+
+      // Adiciona o novo lote retornado diretamente na lista do estado do React
+      if (novoLote) {
+        setLotes((prev) => [novoLote, ...prev]);
+      } else {
+        await carregarDados();
+      }
+
+      // Limpa os campos do formulário
+      setProdutoLote("Café comum");
+      setQualidadeLote("Tipo 2");
+      setProprietarioLote("Fazenda União");
+      setSacasLote("1000");
+
+      setMensagem({ tipo: "sucesso", texto: "Lote de café cadastrado com sucesso!" });
     } catch (err) {
-      setErro(err.message);
-    } finally {
-      setSalvandoLote(false);
+      setMensagem({ tipo: "erro", texto: err.message || "Erro ao cadastrar lote de café." });
     }
   }
 
-  async function registrarRecebimento(loteId) {
-    setRegistrandoId(loteId);
-    setSucessoLote(null);
-    try {
-      await api.registrarRecebimento(loteId);
-      setSucessoLote(
-        `Tarefa de recebimento criada para ${loteId} — vá em "Tarefas & Empilhadeiras" para atribuir e concluir.`
-      );
-      carregar();
-    } catch (err) {
-      setErro(err.message);
-    } finally {
-      setRegistrandoId(null);
-    }
-  }
+  if (carregando) return <Loading label="A carregar cadastros..." />;
+  if (erro) return <ErrorBox message={erro} />;
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900">Cadastros</h2>
+        <h2 className="text-2xl font-bold text-slate-900">Cadastros do Armazém</h2>
         <p className="text-slate-500 text-sm mt-1">
-          Adicione novas empilhadeiras à frota ou registre novos lotes de café.
+          Registo de novos lotes de café e empilhadeiras da frota.
         </p>
       </div>
 
-      {erro && <ErrorBox message={erro} />}
+      {mensagem && (
+        <div
+          className={`p-4 rounded-xl text-sm font-medium transition-all ${
+            mensagem.tipo === "sucesso"
+              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+              : "bg-red-50 text-red-800 border border-red-200"
+          }`}
+        >
+          {mensagem.texto}
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Nova empilhadeira */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* FORMULÁRIO EMPILHADEIRA */}
         <Card title="🚜 Nova Empilhadeira">
-          <form onSubmit={cadastrarEmpilhadeira}>
-            <Field label="Nome / identificação">
+          <form onSubmit={handleCriarEmpilhadeira} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
+                Nome / Identificação
+              </label>
               <input
-                required
-                className={inputCls}
-                placeholder="Ex: Empilhadeira 04 (Elétrica 3.0t)"
+                type="text"
+                placeholder="Ex: EMP-05 (Elétrica 3.0t)"
                 value={nomeEmp}
                 onChange={(e) => setNomeEmp(e.target.value)}
-              />
-            </Field>
-            <Field label="Operador responsável">
-              <input
+                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50"
                 required
-                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
+                Operador responsável
+              </label>
+              <input
+                type="text"
                 placeholder="Nome do operador"
                 value={operadorEmp}
                 onChange={(e) => setOperadorEmp(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50"
               />
-            </Field>
-            <Field label="Capacidade (kg)">
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
+                Capacidade (kg)
+              </label>
               <input
                 type="number"
-                min="1"
-                className={inputCls}
                 value={capacidadeEmp}
                 onChange={(e) => setCapacidadeEmp(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50"
               />
-            </Field>
-            <p className="text-[11px] text-slate-400 mb-3">
-              Entra na frota como <strong>disponível</strong>, posicionada na doca de recebimento.
-            </p>
+            </div>
             <button
               type="submit"
-              disabled={salvandoEmp}
-              className="w-full py-2 rounded-lg bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 disabled:opacity-50 transition-colors"
+              className="w-full py-2.5 rounded-lg bg-emerald-700 text-white font-bold text-sm hover:bg-emerald-800 transition-colors"
             >
-              {salvandoEmp ? "Cadastrando..." : "+ Cadastrar empilhadeira"}
+              + Cadastrar empilhadeira
             </button>
-            {sucessoEmp && (
-              <p className="text-xs text-emerald-700 bg-emerald-50 rounded p-2 mt-3">{sucessoEmp}</p>
-            )}
           </form>
 
-          <div className="mt-5 pt-4 border-t">
-            <p className="text-xs font-semibold text-slate-500 mb-2">Frota atual ({empilhadeiras.length})</p>
-            <ul className="space-y-1.5 text-sm max-h-40 overflow-y-auto scrollbar-thin">
-              {empilhadeiras.map((e) => (
-                <li key={e.id} className="flex items-center justify-between border rounded-lg px-3 py-1.5">
-                  <span>{e.nome}</span>
-                  <Badge type={e.status}>{e.status.replace("_", " ")}</Badge>
-                </li>
-              ))}
-            </ul>
+          <div className="mt-6 border-t pt-4 space-y-2">
+            <p className="text-xs font-semibold text-slate-500">Frota atual ({empilhadeiras.length})</p>
+            {empilhadeiras.map((e) => (
+              <div key={e.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg text-sm">
+                <span className="font-medium text-slate-700">{e.nome || e.id}</span>
+                <Badge type={e.status || "DISPONIVEL"}>{e.status || "DISPONIVEL"}</Badge>
+              </div>
+            ))}
           </div>
         </Card>
 
-        {/* Novo lote */}
+        {/* FORMULÁRIO LOTE DE CAFÉ */}
         <Card title="☕ Novo Lote de Café">
-          <form onSubmit={cadastrarLote}>
-            <Field label="Produto">
+          <form onSubmit={handleCriarLote} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
+                Produto
+              </label>
               <input
-                required
-                className={inputCls}
-                placeholder="Ex: Café Arábica Cereja Descascado"
+                type="text"
                 value={produtoLote}
                 onChange={(e) => setProdutoLote(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50"
+                required
               />
-            </Field>
-            <Field label="Qualidade / classificação">
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
+                Qualidade / Classificação
+              </label>
               <input
-                className={inputCls}
-                placeholder="Ex: Tipo 4, Bica Corrida"
+                type="text"
                 value={qualidadeLote}
                 onChange={(e) => setQualidadeLote(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50"
               />
-            </Field>
-            <Field label="Proprietário">
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
+                Proprietário
+              </label>
               <input
-                required
-                className={inputCls}
-                placeholder="Ex: Fazenda Santa Rita"
+                type="text"
                 value={proprietarioLote}
                 onChange={(e) => setProprietarioLote(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50"
               />
-            </Field>
-            <Field label="Quantidade de sacas">
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
+                Quantidade de sacas
+              </label>
               <input
                 type="number"
-                min="1"
-                className={inputCls}
-                placeholder="Ex: 240"
                 value={sacasLote}
                 onChange={(e) => setSacasLote(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50"
               />
-            </Field>
-            <p className="text-[11px] text-slate-400 mb-3">
-              Entra como <strong>aguardando descarga</strong> — ainda sem big bags/posições, até o
-              recebimento físico ser registrado como tarefa.
-            </p>
+            </div>
             <button
               type="submit"
-              disabled={salvandoLote}
-              className="w-full py-2 rounded-lg bg-coffee-600 text-white text-sm font-semibold hover:bg-coffee-700 disabled:opacity-50 transition-colors"
+              className="w-full py-2.5 rounded-lg bg-amber-800 text-white font-bold text-sm hover:bg-amber-900 transition-colors"
             >
-              {salvandoLote ? "Cadastrando..." : "+ Cadastrar lote"}
+              + Cadastrar lote
             </button>
-            {sucessoLote && (
-              <p className="text-xs text-emerald-700 bg-emerald-50 rounded p-2 mt-3">{sucessoLote}</p>
-            )}
           </form>
 
-          <div className="mt-5 pt-4 border-t">
-            <p className="text-xs font-semibold text-slate-500 mb-2">Lotes cadastrados ({lotes.length})</p>
-            <ul className="space-y-1.5 text-sm max-h-52 overflow-y-auto scrollbar-thin">
-              {lotes.map((l) => (
-                <li key={l.id} className="flex items-center justify-between gap-2 border rounded-lg px-3 py-1.5">
-                  <span className="truncate">
-                    {l.id} — {l.produto}
-                  </span>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Badge type={l.status === "aguardando_descarga" ? "atencao" : "ocupada"}>
-                      {l.status.replace(/_/g, " ")}
-                    </Badge>
-                    {l.status === "aguardando_descarga" && (
-                      <button
-                        onClick={() => registrarRecebimento(l.id)}
-                        disabled={registrandoId === l.id}
-                        className="text-[11px] px-2 py-1 rounded bg-brand-500 text-white font-medium hover:bg-brand-600 disabled:opacity-50 transition-colors"
-                      >
-                        {registrandoId === l.id ? "..." : "Registrar recebimento"}
-                      </button>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
+          <div className="mt-6 border-t pt-4 space-y-2">
+            <p className="text-xs font-semibold text-slate-500">Lotes cadastrados ({lotes.length})</p>
+            {lotes.map((l) => (
+              <div key={l.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg text-sm">
+                <span className="font-medium text-slate-700">
+                  {l.codigo || l.id} — {l.produto}
+                </span>
+                <Badge type={l.status || "DISPONIVEL"}>{l.status || "DISPONIVEL"}</Badge>
+              </div>
+            ))}
           </div>
         </Card>
       </div>
