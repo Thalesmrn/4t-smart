@@ -25,28 +25,32 @@ router.all(['/proxima-tarefa', '/:empilhadeiraId/proxima-tarefa'], async (req, r
   try {
     const empParam = req.params.empilhadeiraId || req.query.empilhadeiraId;
 
-    if (!empParam) {
-      return res.json({ mensagem: "Selecione uma empilhadeira.", tarefa: null });
+    // 🔴 TRAVA RÍGIDA: Se não houver ID explícito na requisição, bloqueia imediatamente sem fallbacks
+    if (!empParam || empParam === 'undefined' || empParam === 'null' || empParam.trim() === '') {
+      return res.json({
+        mensagem: "Nenhuma empilhadeira selecionada.",
+        tarefa: null
+      });
     }
 
-    // Normaliza variações de ID (ex: "EMP-01", "emp01", "emp1", "EMP-1")
+    // Normaliza variações de ID (ex: "EMP-01", "emp01", "emp1")
     const idLimpo = empParam.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-    // 1. Busca todas as tarefas ativas do banco
+    // 1. Busca no banco de dados tarefas em aberto
     const tarefasBanco = await prisma.tarefa.findMany({
       where: {
         status: { in: ['PENDENTE', 'EM_ANDAMENTO', 'ATRIBUIDA'] }
       }
     }).catch(() => []);
 
-    // 2. Filtra ESTRITAMENTE as tarefas pertencentes a ESTA empilhadeira
+    // 2. Procura estritamente uma tarefa cujo empilhadeiraId seja EXATAMENTE igual ao selecionado
     const tarefaEmpilhadeira = tarefasBanco.find(t => {
       if (!t.empilhadeiraId) return false;
       const targetLimpo = t.empilhadeiraId.toLowerCase().replace(/[^a-z0-9]/g, '');
       return targetLimpo === idLimpo || t.empilhadeiraId === empParam;
     });
 
-    // 🔴 SE NÃO HOUVER TAREFA VINCULADA: Retorna tarefa: null SEM criar dados fakes!
+    // Se a empilhadeira não tem tarefa atribuída no banco, retorna nulo para exibir a tela de livre (✅)
     if (!tarefaEmpilhadeira) {
       return res.json({
         mensagem: "Nenhuma tarefa atribuída a esta empilhadeira.",
@@ -110,8 +114,8 @@ router.all([
       });
     }
 
-    // Libera a empilhadeira se não houverem mais tarefas pendentes
-    if (empilhadeiraId) {
+    // Atualiza status da empilhadeira para DISPONIVEL no banco se não houver mais tarefas ativas para ela
+    if (empilhadeiraId && empilhadeiraId !== 'undefined') {
       const idLimpo = empilhadeiraId.toLowerCase().replace(/[^a-z0-9]/g, '');
       const tarefasRestantes = await prisma.tarefa.findMany({
         where: { status: { in: ['PENDENTE', 'EM_ANDAMENTO', 'ATRIBUIDA'] } }
@@ -125,7 +129,10 @@ router.all([
       if (!aindaTem) {
         await prisma.empilhadeira.updateMany({
           where: {
-            OR: [{ id: empilhadeiraId }, { nome: empilhadeiraId }]
+            OR: [
+              { id: empilhadeiraId },
+              { nome: empilhadeiraId }
+            ]
           },
           data: { status: 'DISPONIVEL' }
         }).catch(() => null);
@@ -134,7 +141,7 @@ router.all([
 
     return res.json({
       sucesso: true,
-      mensagem: "Tarefa concluída e empilhadeira liberada com sucesso!"
+      mensagem: "Tarefa concluída com sucesso!"
     });
   } catch (error) {
     console.error('❌ Erro ao concluir tarefa:', error);
