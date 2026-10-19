@@ -29,31 +29,49 @@ router.all(['/proxima-tarefa', '/:empilhadeiraId/proxima-tarefa'], async (req, r
       return res.json({ mensagem: "Selecione uma empilhadeira.", tarefa: null });
     }
 
-    // 1. Busca a empilhadeira para verificar seu status
+    // 1. Busca a empilhadeira pelo id ou nome
     const empilhadeira = await prisma.empilhadeira.findFirst({
       where: {
         OR: [{ id: empilhadeiraId }, { nome: empilhadeiraId }]
       }
     }).catch(() => null);
 
-    // 2. Busca tarefa vinculada especificamente a esta empilhadeira com status EM_ANDAMENTO ou PENDENTE
+    const targetId = empilhadeira?.id || empilhadeiraId;
+
+    // 2. Busca estritamente tarefas atribuídas A ESTA empilhadeira específica
     const tarefaAtiva = await prisma.tarefa.findFirst({
       where: {
-        empilhadeiraId: empilhadeira?.id || empilhadeiraId,
-        status: { in: ['PENDENTE', 'EM_ANDAMENTO'] }
+        empilhadeiraId: targetId,
+        status: { in: ['PENDENTE', 'EM_ANDAMENTO', 'ATRIBUIDA'] }
       }
     }).catch(() => null);
 
-    // Se não houver tarefa vinculada diretamente, retorna estado limpo (sem inventar tarefas para empilhadeiras livres)
+    // Se NÃO tem tarefa vinculada explicitamente a esta empilhadeira, ela é/continua LIVRE
     if (!tarefaAtiva) {
+      // Atualiza o status da empilhadeira para DISPONIVEL se estiver como EM_USO
+      if (empilhadeira && empilhadeira.status !== 'DISPONIVEL') {
+        await prisma.empilhadeira.update({
+          where: { id: empilhadeira.id },
+          data: { status: 'DISPONIVEL' }
+        }).catch(() => null);
+      }
+
       return res.json({
-        mensagem: "Todas as tarefas desta empilhadeira foram concluídas!",
+        mensagem: "Nenhuma tarefa atribuída a esta empilhadeira.",
         tarefa: null
       });
     }
 
+    // Atualiza status da empilhadeira para EM_USO se houver tarefa pendente
+    if (empilhadeira && empilhadeira.status !== 'EM_USO') {
+      await prisma.empilhadeira.update({
+        where: { id: empilhadeira.id },
+        data: { status: 'EM_USO' }
+      }).catch(() => null);
+    }
+
     return res.json({
-      mensagem: "Próxima tarefa carregada",
+      mensagem: "Próxima tarefa em andamento",
       tarefa: {
         id: tarefaAtiva.id,
         tipo: tarefaAtiva.tipo || 'MOVIMENTACAO',
@@ -97,12 +115,10 @@ router.all([
     const { tarefaId, empilhadeiraId } = req.params;
 
     if (tarefaId) {
-      // 1. Marca a tarefa como CONCLUIDA no banco
       await prisma.tarefa.update({
         where: { id: tarefaId },
         data: { status: 'CONCLUIDA' }
       }).catch(async () => {
-        // Fallback caso a busca por id exato falhe
         await prisma.tarefa.updateMany({
           where: { id: tarefaId },
           data: { status: 'CONCLUIDA' }
@@ -110,12 +126,12 @@ router.all([
       });
     }
 
+    // Libera a empilhadeira se não existirem outras tarefas em aberto para ela
     if (empilhadeiraId) {
-      // 2. Libera a empilhadeira se não houver mais tarefas pendentes para ela
       const tarefasRestantes = await prisma.tarefa.count({
         where: {
           empilhadeiraId: empilhadeiraId,
-          status: { in: ['PENDENTE', 'EM_ANDAMENTO'] }
+          status: { in: ['PENDENTE', 'EM_ANDAMENTO', 'ATRIBUIDA'] }
         }
       }).catch(() => 0);
 
@@ -129,7 +145,7 @@ router.all([
 
     return res.json({
       sucesso: true,
-      mensagem: "Tarefa concluída e status atualizado com sucesso!"
+      mensagem: "Tarefa concluída e empilhadeira liberada com sucesso!"
     });
   } catch (error) {
     console.error('❌ Erro ao concluir tarefa:', error);
