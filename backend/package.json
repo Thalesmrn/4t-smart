@@ -1,18 +1,18 @@
 {
-  "name": "wms-backend",
+  "name": "4t-smart-warehouse-backend",
   "version": "1.0.0",
-  "description": "Backend WMS para gestão de armazém de café",
-  "main": "src/server.js",
+  "description": "API do 4T Smart Warehouse",
+  "main": "server.js",
   "scripts": {
-    "build": "npx prisma db push && npx prisma generate",
-    "start": "node src/server.js"
+    "start": "node server.js",
+    "dev": "node --watch server.js"
   },
   "dependencies": {
-    "@prisma/client": "^5.10.0",
-    "cors": "^2.8.5",
-    "express": "^4.18.2"
+    "@prisma/client": "^5.22.0",
+    "cors": "^2.8.6",
+    "express": "^4.19.2"
   },
   "devDependencies": {
-    "prisma": "^5.10.0"
+    "prisma": "^5.22.0"
   }
 }

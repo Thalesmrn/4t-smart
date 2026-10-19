@@ -2,56 +2,56 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../data/db');
 
-// GET /api/empilhadeiras
+function normalizarEmpilhadeira(e) {
+  const agora = new Date().toISOString();
+  return {
+    id: e?.id || "EMP-01",
+    codigo: e?.identificador || e?.codigo || "EMP-01",
+    nome: e?.identificador || e?.nome || "Empilhadeira 01",
+    modelo: "Toyota 8FGU25",
+    operador: e?.operador || "Sem Operador",
+    status: e?.status || "DISPONIVEL",
+    posicaoAtualId: "A-01",
+    distanciaPercorridaHojeM: 0,
+    bateriaPct: e?.bateria ?? 100,
+    horasUso: 0,
+    capacidadeKg: 2500,
+    velocidadeMedia: 0,
+    criadoEm: e?.createdAt || agora,
+    atualizadoEm: e?.updatedAt || agora
+  };
+}
+
+// GET: Lista empilhadeiras do banco
 router.get('/', async (req, res) => {
   try {
-    const lista = await prisma.empilhadeira.findMany().catch(() => []);
-    return res.json(Array.isArray(lista) ? lista : []);
+    const empilhadeiras = await prisma.empilhadeira.findMany();
+    res.json(empilhadeiras.map(normalizarEmpilhadeira));
   } catch (error) {
-    return res.json([]);
+    console.error('❌ Erro ao buscar empilhadeiras no banco:', error);
+    res.status(500).json({ erro: "Erro ao buscar empilhadeiras." });
   }
 });
 
-// POST /api/empilhadeiras (Cadastrar Nova Empilhadeira)
+// POST: Cadastra nova empilhadeira
 router.post('/', async (req, res) => {
   try {
-    const body = req.body || {};
-    const nome = body.nome || body.identificacao;
+    const { nome, identificador, operador } = req.body;
+    const nomeIdentificador = identificador || nome || `EMP-${Date.now()}`;
 
-    if (!nome || !nome.trim()) {
-      return res.status(400).json({ erro: 'O nome da empilhadeira é obrigatório.' });
-    }
-
-    const capacidade = parseInt(body.capacidadeKg || body.capacidade || 2500, 10);
-    const operador = body.operador || body.operadorResponsavel || 'Operador Responsável';
-
-    // Tenta gravar no Prisma / Supabase
-    let novaEmp = await prisma.empilhadeira.create({
+    const novaEmpilhadeira = await prisma.empilhadeira.create({
       data: {
-        nome: nome.trim(),
-        operador: operador.trim(),
-        capacidadeKg: capacidade,
-        status: 'DISPONIVEL'
+        identificador: nomeIdentificador,
+        operador: operador || "Sem Operador",
+        status: "DISPONIVEL",
+        bateria: 100
       }
-    }).catch(async (err) => {
-      console.warn('⚠️ Tentativa 1 de empilhadeira falhou:', err.message);
-      // Tentativa 2 sem o campo capacidadeKg caso o schema divirja
-      return await prisma.empilhadeira.create({
-        data: {
-          nome: nome.trim(),
-          operador: operador.trim(),
-          status: 'DISPONIVEL'
-        }
-      }).catch((err2) => {
-        throw new Error(err2.message);
-      });
     });
 
-    console.log('✅ Empilhadeira criada com sucesso:', novaEmp);
-    return res.json(novaEmp);
+    res.status(201).json(normalizarEmpilhadeira(novaEmpilhadeira));
   } catch (error) {
-    console.error('❌ Erro ao criar empilhadeira:', error.message);
-    return res.status(500).json({ erro: `Erro ao salvar empilhadeira: ${error.message}` });
+    console.error('❌ Erro ao salvar empilhadeira:', error);
+    res.status(500).json({ erro: "Erro ao gravar empilhadeira no banco de dados." });
   }
 });
 
