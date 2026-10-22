@@ -9,13 +9,13 @@ datasource db {
 }
 
 model Galpao {
-  id        String    @id @default(uuid())
-  nome      String
-  codigo    String    @unique
+  id         String   @id @default(uuid())
+  nome       String
+  codigo     String   @unique
   capacidade Int      @default(1000)
-  posicoes  Posicao[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  posicoes   Posicao[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model Posicao {
@@ -31,14 +31,16 @@ model Posicao {
 }
 
 model Lote {
-  id         String    @id @default(uuid())
-  codigo     String    @unique
-  produto    String
-  quantidade Int
-  status     String    @default("DISPONIVEL")
-  posicoes   Posicao[]
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id           String    @id @default(uuid())
+  codigo       String    @unique
+  produto      String
+  qualidade    String?   // <-- Campo adicionado
+  proprietario String?   // <-- Campo adicionado
+  quantidade   Int
+  status       String    @default("DISPONIVEL")
+  posicoes     Posicao[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
 
 model Tarefa {
