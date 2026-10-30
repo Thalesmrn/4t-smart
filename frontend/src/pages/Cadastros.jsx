@@ -123,6 +123,13 @@ export default function Cadastros() {
     }
   }
 
+  // Função helper para obter um nome limpo para a empilhadeira
+  function obterNomeEmpilhadeira(e, index) {
+    if (e.nome && !e.nome.includes("-") && e.nome.length < 20) return e.nome;
+    if (e.modelo && !e.modelo.includes("-") && e.modelo.length < 20) return e.modelo;
+    return `EMP-0${index + 1}`;
+  }
+
   if (carregando) return <Loading label="A carregar cadastros..." />;
   if (erro) return <ErrorBox message={erro} />;
 
@@ -198,16 +205,18 @@ export default function Cadastros() {
 
           <div className="mt-6 border-t pt-4 space-y-2">
             <p className="text-xs font-semibold text-slate-500">Frota atual ({empilhadeiras.length})</p>
-            {empilhadeiras.map((e) => (
+            {empilhadeiras.map((e, index) => (
               <div key={e.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-slate-700">{e.nome || e.modelo || e.id}</span>
+                <div className="flex items-center gap-2 overflow-hidden mr-2">
+                  <span className="font-medium text-slate-700 truncate">
+                    {obterNomeEmpilhadeira(e, index)}
+                  </span>
                   <Badge type={e.status || "DISPONIVEL"}>{e.status || "DISPONIVEL"}</Badge>
                 </div>
                 <button
                   type="button"
                   onClick={() => handleDeletarEmpilhadeira(e.id)}
-                  className="px-2.5 py-1 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors"
+                  className="px-2.5 py-1 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors shrink-0"
                 >
                   Excluir
                 </button>
@@ -285,7 +294,7 @@ export default function Cadastros() {
                 <div key={l.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg text-sm">
                   <div className="flex items-center gap-2 overflow-hidden mr-2">
                     <span className="font-medium text-slate-700 truncate">
-                      {l.codigo || l.id} — {l.produto}
+                      {l.codigo || l.id} — {l.produto || "Café Comum"}
                     </span>
                     <Badge type={l.status || "AGUARDANDO_DESCARGA"}>
                       {l.status || "AGUARDANDO_DESCARGA"}
