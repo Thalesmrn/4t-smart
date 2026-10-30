@@ -26,20 +26,18 @@ function formatarLote(l) {
 // GET /api/lotes
 router.get('/', async (req, res) => {
   try {
-    let lotes = [];
-    try {
-      lotes = await prisma.lote.findMany();
-    } catch {
-      lotes = store.lots || [];
-    }
+    // Tenta buscar no banco Supabase primeiro
+    const lotes = await prisma.lote.findMany();
     return res.json(lotes.map(formatarLote));
   } catch (error) {
-    console.error('❌ Erro no GET /api/lotes:', error);
-    return res.json([]);
+    console.error('❌ Erro no GET /api/lotes (Prisma):', error.message);
+    // Caso falhe o banco, retorna a memória local
+    const lotesMemoria = store.lots || [];
+    return res.json(lotesMemoria.map(formatarLote));
   }
 });
 
-// POST /api/lotes
+// POST /api/lotes (Cadastrar Lote)
 router.post('/', async (req, res) => {
   try {
     const body = req.body || {};
@@ -49,12 +47,13 @@ router.post('/', async (req, res) => {
     }
 
     const qtdNum = parseInt(body.quantidadeSacas || body.quantidade || body.sacas || 1000, 10);
-    
+
     let novoLote;
+
     try {
-      const count = await prisma.lote.count().catch(() => 0);
+      const count = await prisma.lote.count();
       const codigoFormatado = `LOT-${2000 + count + 1}`;
-      
+
       novoLote = await prisma.lote.create({
         data: {
           codigo: codigoFormatado,
@@ -65,8 +64,11 @@ router.post('/', async (req, res) => {
           status: 'AGUARDANDO_DESCARGA'
         }
       });
-    } catch (dbErr) {
-      // Fallback para store em memória se o banco falhar
+      console.log('✅ Lote salvo no Supabase com Sucesso:', novoLote);
+    } catch (dbError) {
+      console.error('⚠️ Falha ao salvar no Supabase/Prisma, gravando em memória local:', dbError.message);
+      
+      // Fallback em memória caso o Supabase/Prisma falhe
       const id = `lot-${Date.now()}`;
       novoLote = {
         id,
@@ -75,17 +77,19 @@ router.post('/', async (req, res) => {
         qualidade: body.qualidade?.trim() || 'Tipo 2',
         proprietario: body.proprietario?.trim() || 'Fazenda União',
         quantidade: qtdNum,
+        quantidadeSacas: qtdNum,
         status: 'AGUARDANDO_DESCARGA'
       };
-      if (store.lots) store.lots.push(novoLote);
+
+      if (!store.lots) store.lots = [];
+      store.lots.push(novoLote);
     }
 
-    console.log('✅ Lote gravado com sucesso:', novoLote);
-    return res.json(formatarLote(novoLote));
+    return res.status(201).json(formatarLote(novoLote));
 
   } catch (error) {
-    console.error('❌ ERRO AO GRAVAR LOTE:', error.message);
-    return res.status(500).json({ erro: `Falha ao cadastrar lote: ${error.message}` });
+    console.error('❌ ERRO CRÍTICO NO CADASTRO DE LOTE:', error.message);
+    return res.status(500).json({ erro: `Erro interno: ${error.message}` });
   }
 });
 
@@ -95,14 +99,14 @@ router.delete('/:id', async (req, res) => {
   try {
     try {
       await prisma.lote.delete({ where: { id: String(id) } });
-    } catch {
+    } catch (dbErr) {
       if (store.lots) {
         store.lots = store.lots.filter(l => String(l.id) !== String(id));
       }
     }
     return res.json({ mensagem: 'Lote excluído com sucesso!' });
   } catch (error) {
-    console.error(`❌ Erro ao deletar lote ${id}:`, error);
+    console.error(`❌ Erro ao deletar lote ${id}:`, error.message);
     return res.status(500).json({ erro: 'Não foi possível excluir o lote.' });
   }
 });
