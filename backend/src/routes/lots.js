@@ -93,17 +93,27 @@ router.post('/', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;
   try {
+    let deletado = false;
+
     try {
-      await prisma.lote.delete({ where: { id: String(id) } });
+      await prisma.lote.delete({
+        where: { id: String(id) }
+      });
+      deletado = true;
+      console.log(`✅ Lote ${id} excluído do Supabase.`);
     } catch (dbErr) {
-      if (store.lots) {
-        store.lots = store.lots.filter(l => String(l.id) !== String(id));
-      }
+      console.warn(`⚠️ Erro Prisma no DELETE, tentando memória local:`, dbErr.message);
     }
-    return res.json({ mensagem: 'Lote excluído com sucesso!' });
+
+    if (store.lots) {
+      store.lots = store.lots.filter(l => String(l.id) !== String(id));
+      deletado = true;
+    }
+
+    return res.json({ mensagem: 'Lote excluído com sucesso!', id });
   } catch (error) {
     console.error(`❌ Erro ao deletar lote ${id}:`, error.message);
-    return res.status(500).json({ erro: 'Não foi possível excluir o lote.' });
+    return res.status(500).json({ erro: `Erro ao excluir lote: ${error.message}` });
   }
 });
 
