@@ -36,7 +36,7 @@ export default function Cadastros() {
       setLotes(Array.isArray(listLotes) ? listLotes : []);
     } catch (e) {
       setErro(e.message || "Erro ao carregar dados.");
-    } fontally {
+    } finally {
       setCarregando(false);
     }
   }
@@ -65,7 +65,7 @@ export default function Cadastros() {
   }
 
   async function handleDeletarEmpilhadeira(id) {
-    if (!window.confirm("Deseja realmente excluir esta empilhadeira?")) return;
+    if (!window.confirm("Tem certeza que deseja excluir esta empilhadeira?")) return;
     try {
       setMensagem(null);
       await api.deletarEmpilhadeira(id);
@@ -108,7 +108,7 @@ export default function Cadastros() {
   }
 
   async function handleDeletarLote(id) {
-    if (!window.confirm("Deseja realmente excluir este lote?")) return;
+    if (!window.confirm("Tem certeza que deseja excluir este lote?")) return;
     try {
       setMensagem(null);
       await api.deletarLote(id);
@@ -127,7 +127,7 @@ export default function Cadastros() {
       <div>
         <h2 className="text-2xl font-bold text-slate-900">Cadastros do Armazém</h2>
         <p className="text-slate-500 text-sm mt-1">
-          Registo de novos lotes de café e empilhadeiras da frota.
+          Registo e remoção de lotes de café e empilhadeiras da frota.
         </p>
       </div>
 
@@ -144,7 +144,7 @@ export default function Cadastros() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* FORMULÁRIO EMPILHADEIRA */}
+        {/* FORMULÁRIO E LISTA DE EMPILHADEIRAS */}
         <Card title="🚜 Nova Empilhadeira">
           <form onSubmit={handleCriarEmpilhadeira} className="space-y-4">
             <div>
@@ -203,7 +203,7 @@ export default function Cadastros() {
                 <button
                   type="button"
                   onClick={() => handleDeletarEmpilhadeira(e.id)}
-                  className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded transition-colors"
+                  className="px-2.5 py-1 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors"
                 >
                   Excluir
                 </button>
@@ -212,7 +212,7 @@ export default function Cadastros() {
           </div>
         </Card>
 
-        {/* FORMULÁRIO LOTE DE CAFÉ */}
+        {/* FORMULÁRIO E LISTA DE LOTES DE CAFÉ */}
         <Card title="☕ Novo Lote de Café">
           <form onSubmit={handleCriarLote} className="space-y-4">
             <div>
@@ -279,8 +279,8 @@ export default function Cadastros() {
             ) : (
               lotes.map((l) => (
                 <div key={l.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-slate-700">
+                  <div className="flex items-center gap-2 overflow-hidden mr-2">
+                    <span className="font-medium text-slate-700 truncate">
                       {l.codigo || l.id} — {l.produto}
                     </span>
                     <Badge type={l.status || "AGUARDANDO_DESCARGA"}>
@@ -290,7 +290,7 @@ export default function Cadastros() {
                   <button
                     type="button"
                     onClick={() => handleDeletarLote(l.id)}
-                    className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded transition-colors"
+                    className="px-2.5 py-1 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors shrink-0"
                   >
                     Excluir
                   </button>
