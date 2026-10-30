@@ -3,7 +3,7 @@ const router = express.Router();
 const prisma = require('../data/db');
 const store = require('../data/store');
 
-// Formatação para padronizar a resposta para o frontend
+// Formatação padronizada do lote para a interface
 function formatarLote(l) {
   let codigoAmigavel = l.codigo || l.id;
   if (!codigoAmigavel || String(codigoAmigavel).length > 20) {
@@ -13,9 +13,9 @@ function formatarLote(l) {
 
   return {
     ...l,
-    id: l.id,
+    id: String(l.id),
     codigo: codigoAmigavel,
-    produto: l.produto || 'Café comum',
+    produto: l.produto || 'Café Arábica Especial',
     qualidade: l.qualidade || 'Tipo 2',
     proprietario: l.proprietario || 'Fazenda União',
     quantidadeSacas: l.quantidade || l.quantidadeSacas || l.sacas || 1000,
@@ -28,8 +28,11 @@ router.get('/', async (req, res) => {
   try {
     let lotes = [];
     try {
-      lotes = await prisma.lote.findMany();
-    } catch {
+      lotes = await prisma.lote.findMany({
+        orderBy: { criadoEm: 'desc' }
+      });
+    } catch (e) {
+      console.warn('⚠️ Falha de leitura no Supabase, buscando da memória:', e.message);
       lotes = store.lots || [];
     }
 
@@ -39,12 +42,12 @@ router.get('/', async (req, res) => {
 
     return res.json(lotes.map(formatarLote));
   } catch (error) {
-    console.error('❌ Erro no GET /api/lotes:', error);
+    console.error('❌ Erro no GET /api/lotes:', error.message);
     return res.json((store.lots || []).map(formatarLote));
   }
 });
 
-// POST /api/lotes
+// POST /api/lotes — Gravação Persistente
 router.post('/', async (req, res) => {
   try {
     const body = req.body || {};
@@ -60,6 +63,7 @@ router.post('/', async (req, res) => {
       const count = await prisma.lote.count().catch(() => 0);
       const codigoFormatado = `LOT-${2000 + count + 1}`;
 
+      // Grava diretamente na tabela 'lote' do Supabase
       novoLote = await prisma.lote.create({
         data: {
           codigo: codigoFormatado,
@@ -70,10 +74,12 @@ router.post('/', async (req, res) => {
           status: 'AGUARDANDO_DESCARGA'
         }
       });
+
       console.log('✅ Lote gravado com sucesso no Supabase:', novoLote);
     } catch (dbError) {
-      console.warn('⚠️ Erro ao salvar no Prisma/Supabase, gravando em memória:', dbError.message);
-      
+      console.error('❌ Erro Prisma/Supabase ao salvar lote:', dbError.message);
+
+      // Backup local temporário
       const id = `lot-${Date.now()}`;
       novoLote = {
         id,
@@ -87,13 +93,13 @@ router.post('/', async (req, res) => {
       };
 
       if (!store.lots) store.lots = [];
-      store.lots.push(novoLote);
+      store.lots.unshift(novoLote);
     }
 
     return res.status(201).json(formatarLote(novoLote));
 
   } catch (error) {
-    console.error('❌ ERRO CRÍTICO AO GRAVAR LOTE:', error.message);
+    console.error('❌ Erro crítico no cadastro de lote:', error.message);
     return res.status(500).json({ erro: `Falha ao cadastrar lote: ${error.message}` });
   }
 });
