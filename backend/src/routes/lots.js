@@ -26,18 +26,16 @@ function formatarLote(l) {
 // GET /api/lotes
 router.get('/', async (req, res) => {
   try {
-    // Tenta buscar no banco Supabase primeiro
     const lotes = await prisma.lote.findMany();
     return res.json(lotes.map(formatarLote));
   } catch (error) {
     console.error('❌ Erro no GET /api/lotes (Prisma):', error.message);
-    // Caso falhe o banco, retorna a memória local
     const lotesMemoria = store.lots || [];
     return res.json(lotesMemoria.map(formatarLote));
   }
 });
 
-// POST /api/lotes (Cadastrar Lote)
+// POST /api/lotes (Cadastrar Lote Real no Supabase)
 router.post('/', async (req, res) => {
   try {
     const body = req.body || {};
@@ -47,7 +45,6 @@ router.post('/', async (req, res) => {
     }
 
     const qtdNum = parseInt(body.quantidadeSacas || body.quantidade || body.sacas || 1000, 10);
-
     let novoLote;
 
     try {
@@ -68,7 +65,6 @@ router.post('/', async (req, res) => {
     } catch (dbError) {
       console.error('⚠️ Falha ao salvar no Supabase/Prisma, gravando em memória local:', dbError.message);
       
-      // Fallback em memória caso o Supabase/Prisma falhe
       const id = `lot-${Date.now()}`;
       novoLote = {
         id,
