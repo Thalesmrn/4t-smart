@@ -12,7 +12,7 @@ function formatarEmpilhadeira(e, index) {
 
   return {
     ...e,
-    id: e.id,
+    id: String(e.id),
     nome: nomeExibicao,
     modelo: nomeExibicao,
     operador: e.operador || 'Operador Responsável',
@@ -38,12 +38,11 @@ router.get('/', async (req, res) => {
     return res.json(empilhadeiras.map(formatarEmpilhadeira));
   } catch (error) {
     console.error('❌ Erro no GET /api/empilhadeiras:', error.message);
-    const mem = store.forklifts || [];
-    return res.json(mem.map(formatarEmpilhadeira));
+    return res.json((store.forklifts || []).map(formatarEmpilhadeira));
   }
 });
 
-// POST /api/empilhadeiras
+// POST /api/empilhadeiras — Gravação Persistente
 router.post('/', async (req, res) => {
   try {
     const body = req.body || {};
@@ -63,7 +62,7 @@ router.post('/', async (req, res) => {
       });
       console.log('✅ Empilhadeira salva no Supabase:', nova);
     } catch (e) {
-      console.warn('⚠️ Erro ao salvar no Prisma, usando memória local:', e.message);
+      console.warn('⚠️ Erro ao salvar no Supabase, salvando em memória local:', e.message);
       nova = {
         id: `emp-${Date.now()}`,
         nome,
@@ -73,13 +72,13 @@ router.post('/', async (req, res) => {
         status: 'DISPONIVEL'
       };
       if (!store.forklifts) store.forklifts = [];
-      store.forklifts.push(nova);
+      store.forklifts.unshift(nova);
     }
 
     const count = store.forklifts?.length || 1;
     return res.status(201).json(formatarEmpilhadeira(nova, count - 1));
   } catch (error) {
-    console.error('❌ ERRO AO CADASTRAR EMPILHADEIRA:', error.message);
+    console.error('❌ Erro ao cadastrar empilhadeira:', error.message);
     return res.status(500).json({ erro: error.message });
   }
 });
