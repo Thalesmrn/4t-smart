@@ -14,7 +14,7 @@ export default function Cadastros() {
   const [operadorEmp, setOperadorEmp] = useState("");
   const [capacidadeEmp, setCapacidadeEmp] = useState("");
 
-  // Form Lote (Iniciando vazios com placeholders)
+  // Form Lote
   const [produtoLote, setProdutoLote] = useState("");
   const [qualidadeLote, setQualidadeLote] = useState("");
   const [proprietarioLote, setProprietarioLote] = useState("");
@@ -36,7 +36,7 @@ export default function Cadastros() {
       setLotes(Array.isArray(listLotes) ? listLotes : []);
     } catch (e) {
       setErro(e.message || "Erro ao carregar dados.");
-    } finally {
+    } fontally {
       setCarregando(false);
     }
   }
@@ -46,10 +46,12 @@ export default function Cadastros() {
     if (!nomeEmp.trim()) return;
     try {
       setMensagem(null);
-      const nova = await api.criarEmpilhadeira({
-        nome: nomeEmp,
+      await api.criarEmpilhadeira({
+        nome: nomeEmp.trim(),
+        modelo: nomeEmp.trim(),
         operador: operadorEmp.trim() || "Operador Responsável",
-        capacidadeKg: parseInt(capacidadeEmp, 10) || 2500
+        capacidadeKg: parseInt(capacidadeEmp, 10) || 2500,
+        capacidade: parseInt(capacidadeEmp, 10) || 2500
       });
       
       setNomeEmp("");
@@ -59,6 +61,18 @@ export default function Cadastros() {
       await carregarDados();
     } catch (err) {
       setMensagem({ tipo: "erro", texto: err.message || "Erro ao cadastrar empilhadeira." });
+    }
+  }
+
+  async function handleDeletarEmpilhadeira(id) {
+    if (!window.confirm("Deseja realmente excluir esta empilhadeira?")) return;
+    try {
+      setMensagem(null);
+      await api.deletarEmpilhadeira(id);
+      setMensagem({ tipo: "sucesso", texto: "Empilhadeira excluída com sucesso!" });
+      await carregarDados();
+    } catch (err) {
+      setMensagem({ tipo: "erro", texto: err.message || "Erro ao excluir empilhadeira." });
     }
   }
 
@@ -75,23 +89,33 @@ export default function Cadastros() {
         produto: produtoLote.trim(),
         qualidade: qualidadeLote.trim() || "Tipo 2",
         proprietario: proprietarioLote.trim() || "Fazenda União",
-        quantidadeSacas: parseInt(sacasLote, 10) || 1000
+        quantidadeSacas: parseInt(sacasLote, 10) || 1000,
+        quantidade: parseInt(sacasLote, 10) || 1000
       };
 
       await api.criarLote(payload);
 
-      // Limpa os campos do formulário
       setProdutoLote("");
       setQualidadeLote("");
       setProprietarioLote("");
       setSacasLote("");
 
       setMensagem({ tipo: "sucesso", texto: "Lote de café cadastrado com sucesso!" });
-      
-      // Recarrega do banco para garantir persistência real
       await carregarDados();
     } catch (err) {
       setMensagem({ tipo: "erro", texto: err.message || "Erro ao cadastrar lote de café." });
+    }
+  }
+
+  async function handleDeletarLote(id) {
+    if (!window.confirm("Deseja realmente excluir este lote?")) return;
+    try {
+      setMensagem(null);
+      await api.deletarLote(id);
+      setMensagem({ tipo: "sucesso", texto: "Lote excluído com sucesso!" });
+      await carregarDados();
+    } catch (err) {
+      setMensagem({ tipo: "erro", texto: err.message || "Erro ao excluir lote." });
     }
   }
 
@@ -172,8 +196,17 @@ export default function Cadastros() {
             <p className="text-xs font-semibold text-slate-500">Frota atual ({empilhadeiras.length})</p>
             {empilhadeiras.map((e) => (
               <div key={e.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg text-sm">
-                <span className="font-medium text-slate-700">{e.nome || e.id}</span>
-                <Badge type={e.status || "DISPONIVEL"}>{e.status || "DISPONIVEL"}</Badge>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-slate-700">{e.nome || e.modelo || e.id}</span>
+                  <Badge type={e.status || "DISPONIVEL"}>{e.status || "DISPONIVEL"}</Badge>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleDeletarEmpilhadeira(e.id)}
+                  className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded transition-colors"
+                >
+                  Excluir
+                </button>
               </div>
             ))}
           </div>
@@ -246,12 +279,21 @@ export default function Cadastros() {
             ) : (
               lotes.map((l) => (
                 <div key={l.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg text-sm">
-                  <span className="font-medium text-slate-700">
-                    {l.codigo || l.id} — {l.produto}
-                  </span>
-                  <Badge type={l.status || "AGUARDANDO_DESCARGA"}>
-                    {l.status || "AGUARDANDO_DESCARGA"}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-slate-700">
+                      {l.codigo || l.id} — {l.produto}
+                    </span>
+                    <Badge type={l.status || "AGUARDANDO_DESCARGA"}>
+                      {l.status || "AGUARDANDO_DESCARGA"}
+                    </Badge>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDeletarLote(l.id)}
+                    className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded transition-colors"
+                  >
+                    Excluir
+                  </button>
                 </div>
               ))
             )}
