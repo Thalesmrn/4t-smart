@@ -41,13 +41,13 @@ export const api = {
   criarEmpilhadeira: (payload) =>
     request("/empilhadeiras", { method: "POST", body: JSON.stringify(payload) }),
   deletarEmpilhadeira: (id) =>
-    request(`/empilhadeiras/${id}`, { method: "DELETE" }),
+    request(`/empilhadeiras/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   lotes: () => request("/lotes"),
   lote: (id) => request(`/lotes/${id}`),
   criarLote: (payload) => request("/lotes", { method: "POST", body: JSON.stringify(payload) }),
   deletarLote: (id) =>
-    request(`/lotes/${id}`, { method: "DELETE" }),
+    request(`/lotes/${encodeURIComponent(id)}`, { method: "DELETE" }),
   registrarRecebimento: (loteId) =>
     request(`/lotes/${loteId}/registrar-recebimento`, { method: "POST" }),
 
