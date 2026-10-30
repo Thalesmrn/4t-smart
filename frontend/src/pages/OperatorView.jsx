@@ -1,206 +1,220 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
-import { Loading, ErrorBox, Badge } from "../components/Common.jsx";
+import { Loading, ErrorBox, Badge, Card } from "../components/Common.jsx";
 
 export default function OperatorView() {
   const [empilhadeiras, setEmpilhadeiras] = useState([]);
-  const [empSelecionada, setEmpSelecionada] = useState("");
-  const [dados, setDados] = useState(null);
-  const [erro, setErro] = useState(null);
-  const [leitura, setLeitura] = useState(null);
-  const [codigoDigitado, setCodigoDigitado] = useState("");
-  const [processando, setProcessando] = useState(false);
+  const [empilhadeiraSel, setEmpilhadeiraSel] = useState("");
+  const [tarefaAtual, setTarefaAtual] = useState(null);
+  
+  const [codigoLeitura, setCodigoLeitura] = useState("");
+  const [validado, setValidado] = useState(false);
 
-  async function carregarEmpilhadeiras() {
-    try {
-      const emps = await api.empilhadeiras().catch(() => []);
-      const lista = Array.isArray(emps) ? emps : [];
-      setEmpilhadeiras(lista);
-      if (!empSelecionada && lista[0]) {
-        setEmpSelecionada(lista[0].id);
-      }
-    } catch (e) {
-      setEmpilhadeiras([]);
-    }
-  }
+  const [carregando, setCarregando] = useState(true);
+  const [carregandoTarefa, setCarregandoTarefa] = useState(false);
+  const [erro, setErro] = useState(null);
+  const [mensagem, setMensagem] = useState(null);
 
   useEffect(() => {
     carregarEmpilhadeiras();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (!empSelecionada) return;
-    carregar();
-    const interval = setInterval(() => {
-      carregar();
-      carregarEmpilhadeiras();
-    }, 5000);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [empSelecionada]);
-
-  async function carregar() {
+  async function carregarEmpilhadeiras() {
+    setCarregando(true);
+    setErro(null);
     try {
-      const res = await api.proximaTarefaOperador(empSelecionada);
-      setDados(res);
-      setLeitura(null);
-    } catch (e) {
-      setErro(e.message);
-    }
-  }
+      const listEmp = await api.empilhadeiras().catch(() => []);
+      const emps = Array.isArray(listEmp) ? listEmp : [];
+      setEmpilhadeiras(emps);
 
-  async function simularLeitura() {
-    if (!dados?.tarefa) return;
-    try {
-      const codigoEsperado = dados.bigBag?.qrCode || "";
-      const codigo = codigoDigitado || codigoEsperado;
-      const res = await api.lerCodigo(empSelecionada, {
-        codigoLido: codigo,
-        tarefaId: dados.tarefa.id,
-      });
-      setLeitura(res);
+      if (emps.length > 0) {
+        const idInicial = emps[0].id;
+        setEmpilhadeiraSel(idInicial);
+        buscarTarefaOperador(idInicial);
+      }
     } catch (e) {
-      setErro(e.message);
-    }
-  }
-
-  async function confirmarConclusao() {
-    if (!dados?.tarefa) return;
-    setProcessando(true);
-    try {
-      await api.confirmarConclusao(empSelecionada, dados.tarefa.id);
-      
-      // Reseta estado e recarrega dados + lista de empilhadeiras atualizada
-      setDados(null);
-      setLeitura(null);
-      setCodigoDigitado("");
-      
-      await Promise.all([carregar(), carregarEmpilhadeiras()]);
-    } catch (e) {
-      setErro(e.message);
+      setErro(e.message || "Erro ao carregar lista de empilhadeiras.");
     } finally {
-      setProcessando(false);
+      setCarregando(false);
     }
   }
 
-  if (erro) return <ErrorBox message={erro} />;
+  async function buscarTarefaOperador(empId) {
+    if (!empId) return;
+    setCarregandoTarefa(true);
+    setMensagem(null);
+    setValidado(false);
+    setCodigoLeitura("");
+
+    try {
+      const res = await api.proximaTarefaOperador(empId);
+      if (res && res.tarefa) {
+        setTarefaAtual(res.tarefa);
+      } else {
+        setTarefaAtual(null);
+      }
+    } catch (err) {
+      console.error(err);
+      setTarefaAtual(null);
+    } finally {
+      setCarregandoTarefa(false);
+    }
+  }
+
+  function handleTrocaEmpilhadeira(id) {
+    setEmpilhadeiraSel(id);
+    buscarTarefaOperador(id);
+  }
+
+  async function handleValidarCodigo(e) {
+    e.preventDefault();
+    if (!codigoLeitura.trim()) return;
+
+    try {
+      setMensagem(null);
+      await api.lerCodigo(empilhadeiraSel, { codigoLote: codigoLeitura.trim() });
+      setValidado(true);
+      setMensagem({ tipo: "sucesso", texto: "✅ Código lido com sucesso! Posição/Lote confirmado." });
+    } catch (err) {
+      setMensagem({ tipo: "erro", texto: "❌ Falha ao ler código: " + err.message });
+    }
+  }
+
+  async function handleConfirmarConclusao() {
+    if (!tarefaAtual) return;
+    try {
+      setMensagem(null);
+      await api.confirmarConclusao(empilhadeiraSel, tarefaAtual.id);
+      setMensagem({ tipo: "sucesso", texto: "🎉 Movimentação finalizada pelo operador com sucesso!" });
+      setTarefaAtual(null);
+      setValidado(false);
+      setCodigoLeitura("");
+
+      // Atualiza após 2 segundos para checar se há mais tarefas
+      setTimeout(() => {
+        buscarTarefaOperador(empilhadeiraSel);
+      }, 1500);
+    } catch (err) {
+      setMensagem({ tipo: "erro", texto: err.message || "Erro ao concluir movimentação." });
+    }
+  }
+
+  if (carregando) return <Loading label="A carregar Monitor do Operador..." />;
+  if (erro) return <ErrorBox message={erro} onRetry={carregarEmpilhadeiras} />;
 
   return (
-    <div className="max-w-sm mx-auto space-y-4">
-      <div>
-        <h2 className="text-xl font-bold text-slate-900">Monitor do Operador</h2>
-        <p className="text-slate-500 text-xs mt-1">Interface simplificada para empilhadeiras</p>
+    <div className="space-y-6 max-w-4xl mx-auto">
+      {/* SELEÇÃO DO OPERADOR / EMPILHADEIRA */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">📱 Monitor do Operador</h2>
+          <p className="text-slate-500 text-xs mt-0.5">Interface simplificada para o coletor de dados/tablet da empilhadeira.</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-bold text-slate-600 uppercase">Empilhadeira:</label>
+          <select
+            value={empilhadeiraSel}
+            onChange={(e) => handleTrocaEmpilhadeira(e.target.value)}
+            className="border rounded-xl px-3 py-2 text-sm font-bold bg-slate-50 text-slate-800 focus:bg-white"
+          >
+            {empilhadeiras.map((e, idx) => (
+              <option key={e.id} value={e.id}>
+                {e.nome || e.modelo || `EMP-0${idx + 1}`} ({e.operador || "Operador"})
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      <select
-        value={empSelecionada}
-        onChange={(e) => {
-          setEmpSelecionada(e.target.value);
-          setDados(null);
-        }}
-        className="w-full border rounded-lg px-3 py-2 text-sm mb-4 bg-white"
-      >
-        {(empilhadeiras || []).map((e) => (
-          <option key={e.id} value={e.id}>
-            {e.nome || e.id} — {e.operador || "Operador"} ({e.status || "DISPONIVEL"})
-          </option>
-        ))}
-      </select>
-
-      {!dados && <Loading label="A verificar tarefas..." />}
-
-      {dados && !dados.tarefa && (
-        <div className="bg-white rounded-2xl shadow-md p-6 text-center space-y-2">
-          <p className="text-4xl">✅</p>
-          <p className="text-sm font-semibold text-slate-700">Empilhadeira Livre!</p>
-          <p className="text-xs text-slate-500">
-            {dados.mensagem || "Não há tarefas pendentes atribuídas a esta empilhadeira."}
-          </p>
+      {mensagem && (
+        <div
+          className={`p-4 rounded-xl text-sm font-medium transition-all ${
+            mensagem.tipo === "sucesso"
+              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+              : "bg-red-50 text-red-800 border border-red-200"
+          }`}
+        >
+          {mensagem.texto}
         </div>
       )}
 
-      {dados && dados.tarefa && (
-        <div className="bg-white rounded-2xl shadow-md overflow-hidden border border-slate-100">
-          <div className="bg-brand-600 text-white px-5 py-4 flex justify-between items-center">
-            <div>
-              <p className="text-[10px] uppercase tracking-wide opacity-80">Tarefa em Execução</p>
-              <p className="text-lg font-bold">
-                {(dados.tarefa.tipo || "MOVIMENTACAO").replace("_", " ")}
-              </p>
-            </div>
-            <span className="text-xs font-mono bg-brand-700 px-2 py-1 rounded">
-              #{dados.tarefa.id}
-            </span>
-          </div>
-
-          <div className="p-5 space-y-4">
-            <p className="text-sm font-medium text-slate-800">{dados.tarefa.descricao}</p>
-
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                <p className="text-[10px] text-slate-400 uppercase font-semibold">Origem</p>
-                <p className="font-bold text-slate-700">{dados.tarefa.origemId || "Doca 01"}</p>
+      {/* EXIBIÇÃO DA TAREFA VINCULADA */}
+      {carregandoTarefa ? (
+        <Loading label="Buscando atribuição para a empilhadeira..." />
+      ) : tarefaAtual ? (
+        <div className="space-y-6">
+          <Card title="🚜 Movimentação Solicitada">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b pb-3">
+                <div>
+                  <span className="text-2xl font-extrabold text-slate-900">{tarefaAtual.loteCodigo}</span>
+                  <p className="text-xs text-slate-500">{tarefaAtual.produto}</p>
+                </div>
+                <Badge type={tarefaAtual.tipo}>{tarefaAtual.tipo}</Badge>
               </div>
-              <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                <p className="text-[10px] text-slate-400 uppercase font-semibold">Destino</p>
-                <p className="font-bold text-slate-700">{dados.tarefa.destinoId || "A definir"}</p>
+
+              {/* ROTA DE MOVIMENTAÇÃO */}
+              <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase">1. Origem (Retirar de)</p>
+                  <p className="text-base font-extrabold text-slate-800 mt-1">📍 {tarefaAtual.origem}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase">2. Destino (Levar para)</p>
+                  <p className="text-base font-extrabold text-emerald-700 mt-1">🎯 {tarefaAtual.destino}</p>
+                </div>
               </div>
-            </div>
 
-            {dados.bigBag && (
-              <div className="bg-slate-50 rounded-lg p-3 text-sm border border-slate-100">
-                <p className="text-[10px] text-slate-400 uppercase font-semibold">Big Bag</p>
-                <p className="font-bold text-slate-800">{dados.bigBag.id} — {dados.bigBag.pesoKg} kg</p>
-                <p className="text-xs text-slate-500 font-mono mt-0.5">
-                  QR: {dados.bigBag.qrCode}
-                </p>
-              </div>
-            )}
+              {/* VALIDAÇÃO DE CÓDIGO/QR CODE */}
+              <form onSubmit={handleValidarCodigo} className="space-y-3 pt-2">
+                <label className="block text-xs font-semibold text-slate-600 uppercase">
+                  Bipar / Confirmar Código da Sacaria ou Posição
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Cole ou bipe o código aqui..."
+                    value={codigoLeitura}
+                    onChange={(e) => setCodigoLeitura(e.target.value)}
+                    className="flex-1 border rounded-xl px-3 py-2.5 text-sm bg-slate-50 focus:bg-white font-mono"
+                  />
+                  <button
+                    type="submit"
+                    className="px-4 py-2.5 bg-slate-800 text-white font-bold text-xs rounded-xl hover:bg-slate-900 transition-colors"
+                  >
+                    Bipar / Validar
+                  </button>
+                </div>
+              </form>
 
-            <div className="flex items-center gap-2">
-              <Badge type={dados.tarefa.status || "PENDENTE"}>
-                {(dados.tarefa.status || "PENDENTE").replace("_", " ")}
-              </Badge>
-            </div>
-
-            <div className="border-t pt-4 space-y-2">
-              <p className="text-xs text-slate-500 font-medium">Simular leitura de RFID / QR Code:</p>
-              <input
-                type="text"
-                placeholder={dados.bigBag?.qrCode || "Código do Big Bag"}
-                value={codigoDigitado}
-                onChange={(e) => setCodigoDigitado(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50 focus:bg-white"
-              />
-              <button
-                onClick={simularLeitura}
-                className="w-full py-2 rounded-lg bg-slate-800 text-white text-xs font-semibold hover:bg-slate-900 transition-colors"
-              >
-                📷 Simular leitura
-              </button>
-
-              {leitura && (
-                <p
-                  className={`text-xs rounded-lg p-2.5 font-medium ${
-                    leitura.valido || leitura.sucesso
-                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                      : "bg-red-50 text-red-700 border border-red-200"
-                  }`}
+              {/* BOTÃO DE CONFIRMAR CONCLUSÃO */}
+              <div className="pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={handleConfirmarConclusao}
+                  className="w-full py-4 bg-emerald-700 text-white font-black text-base rounded-xl hover:bg-emerald-800 transition-colors shadow-md flex items-center justify-center gap-2"
                 >
-                  {leitura.mensagem}
-                </p>
-              )}
+                  <span>✓</span> CONFIRMAR CONCLUSÃO DA MOVIMENTAÇÃO
+                </button>
+              </div>
             </div>
-
-            <button
-              onClick={confirmarConclusao}
-              disabled={processando}
-              className="w-full py-3 rounded-lg bg-brand-500 text-white font-bold text-sm hover:bg-brand-600 active:scale-[0.98] disabled:opacity-50 transition-all shadow-sm"
-            >
-              {processando ? "A concluir..." : "✔ Confirmar Conclusão da Tarefa"}
-            </button>
-          </div>
+          </Card>
+        </div>
+      ) : (
+        <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center space-y-3 shadow-sm">
+          <p className="text-3xl">☕</p>
+          <h3 className="text-lg font-bold text-slate-800">Nenhuma tarefa no momento!</h3>
+          <p className="text-xs text-slate-400 max-w-sm mx-auto">
+            Esta empilhadeira está livre. Assim que uma nova Ordem de Movimentação for criada para ela na tela de Tarefas, ela aparecerá aqui automaticamente.
+          </p>
+          <button
+            type="button"
+            onClick={() => buscarTarefaOperador(empilhadeiraSel)}
+            className="px-4 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200 transition-colors mt-2"
+          >
+            🔄 Atualizar busca
+          </button>
         </div>
       )}
     </div>
