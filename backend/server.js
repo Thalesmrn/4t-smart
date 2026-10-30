@@ -6,7 +6,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Importação das Rotas do Sistema
+// Importação das rotas
 const dashboardRoutes = require('./src/routes/dashboard');
 const warehouseRoutes = require('./src/routes/warehouse');
 const tasksRoutes = require('./src/routes/tasks');
@@ -15,7 +15,7 @@ const empilhadeirasRoutes = require('./src/routes/forklifts');
 const slottingRoutes = require('./src/routes/slotting');
 const operatorRoutes = require('./src/routes/operator');
 
-// Registro Oficial de Endpoints
+// Mapeamento das rotas da API
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/armazem', warehouseRoutes);
 app.use('/api/tarefas', tasksRoutes);
