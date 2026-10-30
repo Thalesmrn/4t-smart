@@ -1,7 +1,3 @@
-// Em produção (Vercel), VITE_API_URL aponta para o backend real no Render,
-// ex.: https://meu-backend.onrender.com — sem essa variável, cai no caminho
-// relativo "/api", que só funciona em dev graças ao proxy do vite.config.js.
-// Se a variável VITE_API_URL não vier da Vercel, assume diretamente o backend do Render
 const API_URL = import.meta.env.VITE_API_URL || "https://fourt-smart.onrender.com";
 const BASE_URL = `${API_URL}/api`;
 
@@ -44,18 +40,20 @@ export const api = {
   empilhadeira: (id) => request(`/empilhadeiras/${id}`),
   criarEmpilhadeira: (payload) =>
     request("/empilhadeiras", { method: "POST", body: JSON.stringify(payload) }),
+  deletarEmpilhadeira: (id) =>
+    request(`/empilhadeiras/${id}`, { method: "DELETE" }),
 
   lotes: () => request("/lotes"),
   lote: (id) => request(`/lotes/${id}`),
   criarLote: (payload) => request("/lotes", { method: "POST", body: JSON.stringify(payload) }),
+  deletarLote: (id) =>
+    request(`/lotes/${id}`, { method: "DELETE" }),
   registrarRecebimento: (loteId) =>
     request(`/lotes/${loteId}/registrar-recebimento`, { method: "POST" }),
 
-  // 🔄 CORRIGIDO: Rota alinhada com o backend (/slotting/sequencia-otimizada)
   sequenciaOtimizada: (empilhadeiraId) =>
     request(`/slotting/sequencia-otimizada?empilhadeiraId=${empilhadeiraId}`),
 
-  // 🔄 CORRIGIDO: Suporta método POST para recomendar posições de slotting
   recomendarSlotting: (payload) =>
     request("/slotting/recomendar", { method: "POST", body: JSON.stringify(payload) }),
 
