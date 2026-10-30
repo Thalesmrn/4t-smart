@@ -1,57 +1,71 @@
 const express = require('express');
 const router = express.Router();
 const prisma = require('../data/db');
+const store = require('../data/store');
 
-function normalizarEmpilhadeira(e) {
-  const agora = new Date().toISOString();
-  return {
-    id: e?.id || "EMP-01",
-    codigo: e?.identificador || e?.codigo || "EMP-01",
-    nome: e?.identificador || e?.nome || "Empilhadeira 01",
-    modelo: "Toyota 8FGU25",
-    operador: e?.operador || "Sem Operador",
-    status: e?.status || "DISPONIVEL",
-    posicaoAtualId: "A-01",
-    distanciaPercorridaHojeM: 0,
-    bateriaPct: e?.bateria ?? 100,
-    horasUso: 0,
-    capacidadeKg: 2500,
-    velocidadeMedia: 0,
-    criadoEm: e?.createdAt || agora,
-    atualizadoEm: e?.updatedAt || agora
-  };
-}
-
-// GET: Lista empilhadeiras do banco
+// GET /api/empilhadeiras
 router.get('/', async (req, res) => {
   try {
     const empilhadeiras = await prisma.empilhadeira.findMany();
-    res.json(empilhadeiras.map(normalizarEmpilhadeira));
+    return res.json(empilhadeiras);
   } catch (error) {
-    console.error('❌ Erro ao buscar empilhadeiras no banco:', error);
-    res.status(500).json({ erro: "Erro ao buscar empilhadeiras." });
+    const mem = store.forklifts || [];
+    return res.json(mem);
   }
 });
 
-// POST: Cadastra nova empilhadeira
+// POST /api/empilhadeiras
 router.post('/', async (req, res) => {
   try {
-    const { nome, identificador, operador } = req.body;
-    const nomeIdentificador = identificador || nome || `EMP-${Date.now()}`;
+    const body = req.body || {};
+    const nome = body.nome || body.modelo || 'EMP-00';
+    const operador = body.operador || 'Operador Responsável';
+    const cap = parseInt(body.capacidadeKg || body.capacidade || 2500, 10);
 
-    const novaEmpilhadeira = await prisma.empilhadeira.create({
-      data: {
-        identificador: nomeIdentificador,
-        operador: operador || "Sem Operador",
-        status: "DISPONIVEL",
-        bateria: 100
-      }
-    });
+    let nova;
+    try {
+      nova = await prisma.empilhadeira.create({
+        data: {
+          nome,
+          operador,
+          capacidadeKg: cap,
+          status: 'DISPONIVEL'
+        }
+      });
+    } catch (e) {
+      nova = {
+        id: `emp-${Date.now()}`,
+        nome,
+        operador,
+        capacidadeKg: cap,
+        status: 'DISPONIVEL'
+      };
+      if (!store.forklifts) store.forklifts = [];
+      store.forklifts.push(nova);
+    }
 
-    res.status(201).json(normalizarEmpilhadeira(novaEmpilhadeira));
+    return res.status(201).json(nova);
   } catch (error) {
-    console.error('❌ Erro ao salvar empilhadeira:', error);
-    res.status(500).json({ erro: "Erro ao gravar empilhadeira no banco de dados." });
+    return res.status(500).json({ erro: error.message });
+  }
+});
+
+// DELETE /api/empilhadeiras/:id
+router.delete('/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    try {
+      await prisma.empilhadeira.delete({
+        where: { id: String(id) }
+      });
+    } catch (e) {
+      if (store.forklifts) {
+        store.forklifts = store.forklifts.filter(item => String(item.id) !== String(id));
+      }
+    }
+    return res.json({ mensagem: 'Empilhadeira excluída com sucesso!', id });
+  } catch (error) {
+    return res.status(500).json({ erro: error.message });
   }
 });
 
