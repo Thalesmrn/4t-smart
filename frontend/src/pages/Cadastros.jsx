@@ -70,9 +70,10 @@ export default function Cadastros() {
       setMensagem(null);
       await api.deletarEmpilhadeira(id);
       setMensagem({ tipo: "sucesso", texto: "Empilhadeira excluída com sucesso!" });
-      await carregarDados();
+      setEmpilhadeiras((prev) => prev.filter((e) => String(e.id) !== String(id)));
     } catch (err) {
       setMensagem({ tipo: "erro", texto: err.message || "Erro ao excluir empilhadeira." });
+      await carregarDados();
     }
   }
 
@@ -113,9 +114,10 @@ export default function Cadastros() {
       setMensagem(null);
       await api.deletarLote(id);
       setMensagem({ tipo: "sucesso", texto: "Lote excluído com sucesso!" });
-      await carregarDados();
+      setLotes((prev) => prev.filter((l) => String(l.id) !== String(id)));
     } catch (err) {
       setMensagem({ tipo: "erro", texto: err.message || "Erro ao excluir lote." });
+      await carregarDados();
     }
   }
 
