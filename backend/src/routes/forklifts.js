@@ -3,14 +3,46 @@ const router = express.Router();
 const prisma = require('../data/db');
 const store = require('../data/store');
 
+// Formatação para padronizar o nome da empilhadeira na resposta
+function formatarEmpilhadeira(e, index) {
+  let nomeExibicao = e.nome || e.modelo;
+
+  // Se o nome for o próprio UUID ou estiver vazio, formata para EMP-0X
+  if (!nomeExibicao || nomeExibicao.length > 20 || nomeExibicao === e.id) {
+    nomeExibicao = `EMP-0${index + 1}`;
+  }
+
+  return {
+    ...e,
+    id: e.id,
+    nome: nomeExibicao,
+    modelo: nomeExibicao,
+    operador: e.operador || 'Operador Responsável',
+    capacidadeKg: e.capacidadeKg || e.capacidade || 2500,
+    status: e.status || 'DISPONIVEL'
+  };
+}
+
 // GET /api/empilhadeiras
 router.get('/', async (req, res) => {
   try {
-    const empilhadeiras = await prisma.empilhadeira.findMany();
-    return res.json(empilhadeiras);
+    let empilhadeiras = [];
+    try {
+      empilhadeiras = await prisma.empilhadeira.findMany();
+    } catch {
+      empilhadeiras = store.forklifts || [];
+    }
+
+    // Se o banco estiver vazio, usa a memória local
+    if (!empilhadeiras || empilhadeiras.length === 0) {
+      empilhadeiras = store.forklifts || [];
+    }
+
+    return res.json(empilhadeiras.map(formatarEmpilhadeira));
   } catch (error) {
+    console.error('❌ Erro no GET /api/empilhadeiras:', error.message);
     const mem = store.forklifts || [];
-    return res.json(mem);
+    return res.json(mem.map(formatarEmpilhadeira));
   }
 });
 
@@ -18,8 +50,8 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const body = req.body || {};
-    const nome = body.nome || body.modelo || 'EMP-00';
-    const operador = body.operador || 'Operador Responsável';
+    const nome = body.nome?.trim() || body.modelo?.trim() || 'EMP-05';
+    const operador = body.operador?.trim() || 'Operador Responsável';
     const cap = parseInt(body.capacidadeKg || body.capacidade || 2500, 10);
 
     let nova;
@@ -32,10 +64,13 @@ router.post('/', async (req, res) => {
           status: 'DISPONIVEL'
         }
       });
+      console.log('✅ Empilhadeira salva no Supabase:', nova);
     } catch (e) {
+      console.warn('⚠️ Erro ao salvar no Prisma, usando memória local:', e.message);
       nova = {
         id: `emp-${Date.now()}`,
         nome,
+        modelo: nome,
         operador,
         capacidadeKg: cap,
         status: 'DISPONIVEL'
@@ -44,8 +79,10 @@ router.post('/', async (req, res) => {
       store.forklifts.push(nova);
     }
 
-    return res.status(201).json(nova);
+    const count = await prisma.empilhadeira.count().catch(() => (store.forklifts?.length || 1));
+    return res.status(201).json(formatarEmpilhadeira(nova, count - 1));
   } catch (error) {
+    console.error('❌ ERRO AO CADASTRAR EMPILHADEIRA:', error.message);
     return res.status(500).json({ erro: error.message });
   }
 });
@@ -58,6 +95,7 @@ router.delete('/:id', async (req, res) => {
       await prisma.empilhadeira.delete({
         where: { id: String(id) }
       });
+      console.log(`✅ Empilhadeira ${id} excluída do Supabase.`);
     } catch (e) {
       if (store.forklifts) {
         store.forklifts = store.forklifts.filter(item => String(item.id) !== String(id));
