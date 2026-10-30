@@ -35,7 +35,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /api/lotes
+// POST /api/lotes (Cadastrar Lote Permanente no Supabase)
 router.post('/', async (req, res) => {
   try {
     const body = req.body || {};
@@ -51,6 +51,7 @@ router.post('/', async (req, res) => {
       const count = await prisma.lote.count();
       const codigoFormatado = `LOT-${2000 + count + 1}`;
 
+      // Gravação direta no Supabase
       novoLote = await prisma.lote.create({
         data: {
           codigo: codigoFormatado,
@@ -61,9 +62,9 @@ router.post('/', async (req, res) => {
           status: 'AGUARDANDO_DESCARGA'
         }
       });
-      console.log('✅ Lote salvo no Supabase:', novoLote);
+      console.log('✅ Lote salvo PERMANENTEMENTE no Supabase:', novoLote);
     } catch (dbError) {
-      console.error('⚠️ Falha ao salvar no Supabase, usando memória local:', dbError.message);
+      console.error('⚠️ ALERTA: Banco falhou! Salvando temporariamente em memória local:', dbError.message);
       
       const id = `lot-${Date.now()}`;
       novoLote = {
@@ -84,7 +85,7 @@ router.post('/', async (req, res) => {
     return res.status(201).json(formatarLote(novoLote));
 
   } catch (error) {
-    console.error('❌ ERRO NO CADASTRO DE LOTE:', error.message);
+    console.error('❌ ERRO AO GRAVAR LOTE:', error.message);
     return res.status(500).json({ erro: `Erro interno: ${error.message}` });
   }
 });
