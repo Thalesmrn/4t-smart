@@ -123,7 +123,6 @@ export default function Cadastros() {
     }
   }
 
-  // Função helper para obter um nome limpo para a empilhadeira
   function obterNomeEmpilhadeira(e, index) {
     if (e.nome && !e.nome.includes("-") && e.nome.length < 20) return e.nome;
     if (e.modelo && !e.modelo.includes("-") && e.modelo.length < 20) return e.modelo;
