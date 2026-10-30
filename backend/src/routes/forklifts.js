@@ -1,16 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const prisma = require('../data/db');
 const store = require('../data/store');
-
-const SUPABASE_URL = process.env.SUPABASE_URL || "https://feZuKOTkk1P5usjRVdO5tw.supabase.co";
-const SUPABASE_KEY = process.env.SUPABASE_KEY || "sb_publishable_feZuKOTkk1P5usjRVdO5tw_SwXZ9bGS";
-
-const headers = {
-  "apikey": SUPABASE_KEY,
-  "Authorization": `Bearer ${SUPABASE_KEY}`,
-  "Content-Type": "application/json",
-  "Prefer": "return=representation"
-};
 
 function formatarEmpilhadeira(e, index) {
   let nomeExibicao = e.nome || e.modelo;
@@ -33,14 +24,11 @@ function formatarEmpilhadeira(e, index) {
 // GET /api/empilhadeiras
 router.get('/', async (req, res) => {
   try {
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/empilhadeira?select=*`, {
-      method: "GET",
-      headers
-    });
-
     let empilhadeiras = [];
-    if (response.ok) {
-      empilhadeiras = await response.json();
+    try {
+      empilhadeiras = await prisma.empilhadeira.findMany();
+    } catch {
+      empilhadeiras = store.forklifts || [];
     }
 
     if (!empilhadeiras || empilhadeiras.length === 0) {
@@ -49,7 +37,7 @@ router.get('/', async (req, res) => {
 
     return res.json(empilhadeiras.map(formatarEmpilhadeira));
   } catch (error) {
-    console.error('❌ Erro no GET /api/empilhadeiras via REST:', error.message);
+    console.error('❌ Erro no GET /api/empilhadeiras:', error.message);
     const mem = store.forklifts || [];
     return res.json(mem.map(formatarEmpilhadeira));
   }
@@ -63,31 +51,33 @@ router.post('/', async (req, res) => {
     const operador = body.operador?.trim() || 'Operador Responsável';
     const cap = parseInt(body.capacidadeKg || body.capacidade || 2500, 10);
 
-    const payload = {
-      nome,
-      operador,
-      capacidadeKg: cap,
-      status: 'DISPONIVEL'
-    };
-
     let nova;
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/empilhadeira`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(payload)
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      nova = data[0] || payload;
-      console.log('✅ Empilhadeira salva no Supabase via REST:', nova);
-    } else {
-      nova = { id: `emp-${Date.now()}`, ...payload };
+    try {
+      nova = await prisma.empilhadeira.create({
+        data: {
+          nome,
+          operador,
+          capacidadeKg: cap,
+          status: 'DISPONIVEL'
+        }
+      });
+      console.log('✅ Empilhadeira salva no Supabase:', nova);
+    } catch (e) {
+      console.warn('⚠️ Erro ao salvar no Prisma, usando memória local:', e.message);
+      nova = {
+        id: `emp-${Date.now()}`,
+        nome,
+        modelo: nome,
+        operador,
+        capacidadeKg: cap,
+        status: 'DISPONIVEL'
+      };
       if (!store.forklifts) store.forklifts = [];
       store.forklifts.push(nova);
     }
 
-    return res.status(201).json(formatarEmpilhadeira(nova, 0));
+    const count = await prisma.empilhadeira.count().catch(() => (store.forklifts?.length || 1));
+    return res.status(201).json(formatarEmpilhadeira(nova, count - 1));
   } catch (error) {
     console.error('❌ ERRO AO CADASTRAR EMPILHADEIRA:', error.message);
     return res.status(500).json({ erro: error.message });
@@ -98,15 +88,16 @@ router.post('/', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/empilhadeira?id=eq.${id}`, {
-      method: "DELETE",
-      headers
-    });
-
-    if (store.forklifts) {
-      store.forklifts = store.forklifts.filter(item => String(item.id) !== String(id));
+    try {
+      await prisma.empilhadeira.delete({
+        where: { id: String(id) }
+      });
+      console.log(`✅ Empilhadeira ${id} excluída do Supabase.`);
+    } catch (e) {
+      if (store.forklifts) {
+        store.forklifts = store.forklifts.filter(item => String(item.id) !== String(id));
+      }
     }
-
     return res.json({ mensagem: 'Empilhadeira excluída com sucesso!', id });
   } catch (error) {
     return res.status(500).json({ erro: error.message });
