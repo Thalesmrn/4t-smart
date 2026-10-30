@@ -65,6 +65,7 @@ export default function Cadastros() {
   }
 
   async function handleDeletarEmpilhadeira(id) {
+    if (!id) return;
     if (!window.confirm("Tem certeza que deseja excluir esta empilhadeira?")) return;
     try {
       setMensagem(null);
@@ -109,6 +110,7 @@ export default function Cadastros() {
   }
 
   async function handleDeletarLote(id) {
+    if (!id) return;
     if (!window.confirm("Tem certeza que deseja excluir este lote?")) return;
     try {
       setMensagem(null);
