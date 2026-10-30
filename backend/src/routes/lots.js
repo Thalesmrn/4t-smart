@@ -29,8 +29,7 @@ router.get('/', async (req, res) => {
     let lotes = [];
     try {
       lotes = await prisma.lote.findMany();
-    } catch (e) {
-      console.warn('⚠️ Erro Prisma no GET /lotes, carregando memória:', e.message);
+    } catch {
       lotes = store.lots || [];
     }
 
@@ -40,9 +39,8 @@ router.get('/', async (req, res) => {
 
     return res.json(lotes.map(formatarLote));
   } catch (error) {
-    console.error('❌ Erro no GET /api/lotes:', error.message);
-    const lotesMemoria = store.lots || [];
-    return res.json(lotesMemoria.map(formatarLote));
+    console.error('❌ Erro no GET /api/lotes:', error);
+    return res.json((store.lots || []).map(formatarLote));
   }
 });
 
@@ -62,7 +60,6 @@ router.post('/', async (req, res) => {
       const count = await prisma.lote.count().catch(() => 0);
       const codigoFormatado = `LOT-${2000 + count + 1}`;
 
-      // Tenta gravar diretamente no Prisma
       novoLote = await prisma.lote.create({
         data: {
           codigo: codigoFormatado,
@@ -73,11 +70,10 @@ router.post('/', async (req, res) => {
           status: 'AGUARDANDO_DESCARGA'
         }
       });
-      console.log('✅ Lote salvo com sucesso no Banco:', novoLote);
+      console.log('✅ Lote gravado com sucesso no Supabase:', novoLote);
     } catch (dbError) {
-      console.error('❌ MOTIVO DA FALHA NO BANCO (Prisma):', dbError.message);
-
-      // Fallback em memória
+      console.warn('⚠️ Erro ao salvar no Prisma/Supabase, gravando em memória:', dbError.message);
+      
       const id = `lot-${Date.now()}`;
       novoLote = {
         id,
@@ -97,8 +93,8 @@ router.post('/', async (req, res) => {
     return res.status(201).json(formatarLote(novoLote));
 
   } catch (error) {
-    console.error('❌ ERRO CRÍTICO NO POST /api/lotes:', error.message);
-    return res.status(500).json({ erro: `Erro interno: ${error.message}` });
+    console.error('❌ ERRO CRÍTICO AO GRAVAR LOTE:', error.message);
+    return res.status(500).json({ erro: `Falha ao cadastrar lote: ${error.message}` });
   }
 });
 
@@ -107,22 +103,16 @@ router.delete('/:id', async (req, res) => {
   const { id } = req.params;
   try {
     try {
-      await prisma.lote.delete({
-        where: { id: String(id) }
-      });
-      console.log(`✅ Lote ${id} excluído do Banco.`);
+      await prisma.lote.delete({ where: { id: String(id) } });
     } catch (dbErr) {
-      console.warn(`⚠️ Aviso Prisma no DELETE:`, dbErr.message);
+      if (store.lots) {
+        store.lots = store.lots.filter(l => String(l.id) !== String(id));
+      }
     }
-
-    if (store.lots) {
-      store.lots = store.lots.filter(l => String(l.id) !== String(id));
-    }
-
     return res.json({ mensagem: 'Lote excluído com sucesso!', id });
   } catch (error) {
     console.error(`❌ Erro ao deletar lote ${id}:`, error.message);
-    return res.status(500).json({ erro: `Erro ao excluir lote: ${error.message}` });
+    return res.status(500).json({ erro: 'Não foi possível excluir o lote.' });
   }
 });
 
