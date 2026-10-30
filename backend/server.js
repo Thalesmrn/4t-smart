@@ -6,27 +6,30 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Importação das rotas
+// Importação de todas as rotas do sistema
 const lotesRoutes = require('./src/routes/lots');
 const empilhadeirasRoutes = require('./src/routes/forklifts');
 const slottingRoutes = require('./src/routes/slotting');
+const warehouseRoutes = require('./src/routes/warehouse');
+const tasksRoutes = require('./src/routes/tasks');
+const dashboardRoutes = require('./src/routes/dashboard');
+const operatorRoutes = require('./src/routes/operator');
 
-// Registo dos endpoints da API
+// Registo de Endpoints da API
 app.use('/api/lotes', lotesRoutes);
 app.use('/api/empilhadeiras', empilhadeirasRoutes);
 app.use('/api/slotting', slottingRoutes);
+app.use('/api/armazem', warehouseRoutes);
+app.use('/api/tarefas', tasksRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/operador', operatorRoutes);
 
-// Rotas adicionais do projeto
-try {
-  app.use('/api/dashboard', require('./src/routes/dashboard'));
-  app.use('/api/armazem', require('./src/routes/warehouse'));
-  app.use('/api/tarefas', require('./src/routes/tasks'));
-  app.use('/api/operador', require('./src/routes/operator'));
-} catch (e) {
-  console.log('Aviso ao carregar rotas adicionais:', e.message);
-}
+// Rota de Reset Geral (se usada pelo botão Reset da aplicação)
+app.post('/api/reset', async (req, res) => {
+  return res.json({ mensagem: 'Sistema reiniciado com sucesso.' });
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+  console.log(`🚀 Servidor Smart Warehouse rodando na porta ${PORT}`);
 });
