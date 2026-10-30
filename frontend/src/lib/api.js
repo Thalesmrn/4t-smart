@@ -2,7 +2,6 @@ const API_URL = import.meta.env.VITE_API_URL || "https://fourt-smart.onrender.co
 const BASE_URL = `${API_URL}/api`;
 
 async function request(path, options = {}) {
-  // Garante que o path sempre começa com /
   const normalPath = path.startsWith('/') ? path : `/${path}`;
   const res = await fetch(`${BASE_URL}${normalPath}`, {
     headers: { "Content-Type": "application/json" },
