@@ -12,7 +12,10 @@ export default function TaskManager() {
   const [erro, setErro] = useState(null);
   const [mensagem, setMensagem] = useState(null);
 
-  // Formulário de Nova Ordem de Movimentação
+  // Filtro para ocultar/mostrar concluídas
+  const [mostrarConcluidas, setMostrarConcluidas] = useState(false);
+
+  // Form de Nova Ordem
   const [loteSelId, setLoteSelId] = useState("");
   const [tipoOperacao, setTipoOperacao] = useState("ARMAZENAMENTO");
   const [origem, setOrigem] = useState("Doca 01 (Recebimento)");
@@ -129,9 +132,12 @@ export default function TaskManager() {
   if (carregando) return <Loading label="A carregar gestão de ordens..." />;
   if (erro) return <ErrorBox message={erro} onRetry={carregarDados} />;
 
+  // Separa as tarefas pendentes/em andamento das concluídas
+  const tarefasAtivas = tarefas.filter((t) => t.status !== "CONCLUIDA");
+  const tarefasConcluidas = tarefas.filter((t) => t.status === "CONCLUIDA");
+
   return (
     <div className="space-y-6">
-      {/* CABEÇALHO LIMPO (SEM BOTÃO DE ATRIBUIR AUTOMÁTICO) */}
       <div>
         <h2 className="text-2xl font-bold text-slate-900">Ordens de Movimentação & Frota</h2>
         <p className="text-slate-500 text-sm mt-1">
@@ -152,7 +158,7 @@ export default function TaskManager() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* FORMULÁRIO DE CRIAR ORDEM PARA LOTE */}
+        {/* FORMULÁRIO DE CRIAR ORDEM */}
         <Card title="📦 Nova Ordem para Lote de Café">
           <form onSubmit={handleCriarOrdem} className="space-y-4">
             <div>
@@ -252,16 +258,32 @@ export default function TaskManager() {
           </form>
         </Card>
 
-        {/* LISTA DE ORDENS REGISTRADAS */}
+        {/* PAINEL DE ORDENS ATIVAS E FILTRO COMPACTO PARA CONCLUÍDAS */}
         <div className="lg:col-span-2 space-y-4">
-          <h3 className="text-base font-bold text-slate-800">Ordens de Movimentação Ativas</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-bold text-slate-800">
+              Ordens Em Andamento & Pendentes ({tarefasAtivas.length})
+            </h3>
 
-          {tarefas.length === 0 ? (
+            {/* CHECKBOX / FLAG PARA MOSTRAR HISTÓRICO */}
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg border border-slate-200 transition-colors select-none">
+              <input
+                type="checkbox"
+                checked={mostrarConcluidas}
+                onChange={(e) => setMostrarConcluidas(e.target.checked)}
+                className="rounded border-slate-300 text-emerald-700 focus:ring-emerald-700"
+              />
+              Exibir Concluídas ({tarefasConcluidas.length})
+            </label>
+          </div>
+
+          {/* LISTA DE ORDENS PENDENTES / EM ANDAMENTO */}
+          {tarefasAtivas.length === 0 ? (
             <div className="bg-white p-6 rounded-xl border border-slate-200 text-center text-slate-400 text-xs">
-              Nenhuma ordem registrada no momento.
+              Nenhuma ordem pendente ou em andamento no momento.
             </div>
           ) : (
-            tarefas.map((t) => (
+            tarefasAtivas.map((t) => (
               <div
                 key={t.id}
                 className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3 hover:border-slate-300 transition-all"
@@ -286,10 +308,8 @@ export default function TaskManager() {
                   </p>
                 </div>
 
-                {/* ACOES DA TAREFA */}
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t">
-                  {/* Seleção rápida de empilhadeira caso esteja sem */}
-                  {!t.empilhadeiraId && t.status !== "CONCLUIDA" && (
+                  {!t.empilhadeiraId && (
                     <div className="flex items-center gap-2">
                       <select
                         onChange={(e) => handleAtribuirEmpilhadeira(t.id, e.target.value)}
@@ -307,15 +327,13 @@ export default function TaskManager() {
                   )}
 
                   <div className="flex items-center gap-2 ml-auto">
-                    {t.status !== "CONCLUIDA" && (
-                      <button
-                        type="button"
-                        onClick={() => handleConcluirTarefa(t.id)}
-                        className="px-3 py-1.5 bg-emerald-700 text-white font-bold text-xs rounded-lg hover:bg-emerald-800 transition-colors"
-                      >
-                        ✓ Concluir
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleConcluirTarefa(t.id)}
+                      className="px-3 py-1.5 bg-emerald-700 text-white font-bold text-xs rounded-lg hover:bg-emerald-800 transition-colors shadow-sm"
+                    >
+                      ✓ Concluir
+                    </button>
 
                     <button
                       type="button"
@@ -328,6 +346,35 @@ export default function TaskManager() {
                 </div>
               </div>
             ))
+          )}
+
+          {/* HISTÓRICO COMPACTO DE TAREFAS CONCLUÍDAS (SE A FLAG ESTIVER ATIVA) */}
+          {mostrarConcluidas && (
+            <div className="mt-8 space-y-3 pt-4 border-t border-slate-200">
+              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Histórico de Ordens Concluídas ({tarefasConcluidas.length})
+              </h4>
+
+              {tarefasConcluidas.length === 0 ? (
+                <p className="text-xs text-slate-400">Nenhuma tarefa concluída ainda.</p>
+              ) : (
+                tarefasConcluidas.map((t) => (
+                  <div
+                    key={t.id}
+                    className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs flex items-center justify-between opacity-80 hover:opacity-100 transition-opacity"
+                  >
+                    <div className="flex items-center gap-2 overflow-hidden mr-2">
+                      <span className="font-bold text-slate-700">{t.loteCodigo}</span>
+                      <span className="text-slate-500 truncate">({t.tipo}: {t.origem} ➔ {t.destino})</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-slate-500 text-[11px] font-medium">{t.empilhadeiraNome}</span>
+                      <Badge type="CONCLUIDA">CONCLUÍDA</Badge>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           )}
         </div>
       </div>
