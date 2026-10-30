@@ -2,7 +2,9 @@ const API_URL = import.meta.env.VITE_API_URL || "https://fourt-smart.onrender.co
 const BASE_URL = `${API_URL}/api`;
 
 async function request(path, options = {}) {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  // Garante que o path sempre começa com /
+  const normalPath = path.startsWith('/') ? path : `/${path}`;
+  const res = await fetch(`${BASE_URL}${normalPath}`, {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
@@ -41,13 +43,13 @@ export const api = {
   criarEmpilhadeira: (payload) =>
     request("/empilhadeiras", { method: "POST", body: JSON.stringify(payload) }),
   deletarEmpilhadeira: (id) =>
-    request(`/empilhadeiras/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    request(`/empilhadeiras/${id}`, { method: "DELETE" }),
 
   lotes: () => request("/lotes"),
   lote: (id) => request(`/lotes/${id}`),
   criarLote: (payload) => request("/lotes", { method: "POST", body: JSON.stringify(payload) }),
   deletarLote: (id) =>
-    request(`/lotes/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    request(`/lotes/${id}`, { method: "DELETE" }),
   registrarRecebimento: (loteId) =>
     request(`/lotes/${loteId}/registrar-recebimento`, { method: "POST" }),
 
