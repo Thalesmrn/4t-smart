@@ -76,7 +76,7 @@ router.post('/', async (req, res) => {
       store.forklifts.push(nova);
     }
 
-    const count = await prisma.empilhadeira.count().catch(() => (store.forklifts?.length || 1));
+    const count = store.forklifts?.length || 1;
     return res.status(201).json(formatarEmpilhadeira(nova, count - 1));
   } catch (error) {
     console.error('❌ ERRO AO CADASTRAR EMPILHADEIRA:', error.message);
@@ -89,10 +89,7 @@ router.delete('/:id', async (req, res) => {
   const { id } = req.params;
   try {
     try {
-      await prisma.empilhadeira.delete({
-        where: { id: String(id) }
-      });
-      console.log(`✅ Empilhadeira ${id} excluída do Supabase.`);
+      await prisma.empilhadeira.delete({ where: { id: String(id) } });
     } catch (e) {
       if (store.forklifts) {
         store.forklifts = store.forklifts.filter(item => String(item.id) !== String(id));
