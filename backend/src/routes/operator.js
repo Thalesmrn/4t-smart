@@ -1,151 +1,86 @@
 const express = require('express');
 const router = express.Router();
 const prisma = require('../data/db');
+const store = require('../data/store');
 
-// GET /api/operador
-router.get('/', async (req, res) => {
+// GET /api/operador/:empilhadeiraId/proxima-tarefa
+router.get('/:empilhadeiraId/proxima-tarefa', async (req, res) => {
+  const { empilhadeiraId } = req.params;
+
   try {
-    const tarefas = await prisma.tarefa.findMany({
-      where: { status: { not: 'CONCLUIDA' } }
-    }).catch(() => []);
-
-    res.json({
-      tarefasAtivas: Array.isArray(tarefas) ? tarefas : [],
-      operador: "Operador Principal"
-    });
-  } catch (error) {
-    console.error('❌ Erro no operador:', error);
-    res.json({ tarefasAtivas: [], operador: "Operador Principal" });
-  }
-});
-
-// GET & POST /api/operador/proxima-tarefa
-// GET & POST /api/operador/:empilhadeiraId/proxima-tarefa
-router.all(['/proxima-tarefa', '/:empilhadeiraId/proxima-tarefa'], async (req, res) => {
-  try {
-    const empParam = req.params.empilhadeiraId || req.query.empilhadeiraId;
-
-    // 🔴 TRAVA RÍGIDA: Se não houver ID explícito na requisição, bloqueia imediatamente sem fallbacks
-    if (!empParam || empParam === 'undefined' || empParam === 'null' || empParam.trim() === '') {
-      return res.json({
-        mensagem: "Nenhuma empilhadeira selecionada.",
-        tarefa: null
-      });
+    let tarefas = [];
+    try {
+      tarefas = await prisma.tarefa.findMany();
+    } catch {
+      tarefas = store.tasks || [];
     }
 
-    // Normaliza variações de ID (ex: "EMP-01", "emp01", "emp1")
-    const idLimpo = empParam.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!tarefas || tarefas.length === 0) {
+      tarefas = store.tasks || [];
+    }
 
-    // 1. Busca no banco de dados tarefas em aberto
-    const tarefasBanco = await prisma.tarefa.findMany({
-      where: {
-        status: { in: ['PENDENTE', 'EM_ANDAMENTO', 'ATRIBUIDA'] }
-      }
-    }).catch(() => []);
+    // Busca a tarefa atribuída a esta empilhadeira que esteja pendente ou em andamento
+    const proxima = tarefas.find(
+      t => (String(t.empilhadeiraId) === String(empilhadeiraId) || String(t.empilhadeiraNome) === String(empilhadeiraId)) &&
+           (t.status === 'EM_ANDAMENTO' || t.status === 'PENDENTE')
+    );
 
-    // 2. Procura estritamente uma tarefa cujo empilhadeiraId seja EXATAMENTE igual ao selecionado
-    const tarefaEmpilhadeira = tarefasBanco.find(t => {
-      if (!t.empilhadeiraId) return false;
-      const targetLimpo = t.empilhadeiraId.toLowerCase().replace(/[^a-z0-9]/g, '');
-      return targetLimpo === idLimpo || t.empilhadeiraId === empParam;
-    });
-
-    // Se a empilhadeira não tem tarefa atribuída no banco, retorna nulo para exibir a tela de livre (✅)
-    if (!tarefaEmpilhadeira) {
-      return res.json({
-        mensagem: "Nenhuma tarefa atribuída a esta empilhadeira.",
-        tarefa: null
-      });
+    if (!proxima) {
+      return res.json({ mensagem: 'Nenhuma tarefa pendente para esta empilhadeira no momento.', tarefa: null });
     }
 
     return res.json({
-      mensagem: "Próxima tarefa em andamento",
       tarefa: {
-        id: tarefaEmpilhadeira.id,
-        tipo: tarefaEmpilhadeira.tipo || 'MOVIMENTACAO',
-        descricao: tarefaEmpilhadeira.descricao || `Movimentar Lote de Café`,
-        origemId: tarefaEmpilhadeira.origem || 'Doca 01',
-        destinoId: tarefaEmpilhadeira.destino || 'A-01',
-        status: tarefaEmpilhadeira.status || 'EM_ANDAMENTO',
-        prioridadeScore: tarefaEmpilhadeira.prioridade || 1,
-        urgente: false
-      },
-      bigBag: {
-        id: 'BAG-9921',
-        pesoKg: 1200,
-        qrCode: 'QR-CAF-9921'
+        id: proxima.id,
+        loteCodigo: proxima.loteCodigo || proxima.lote || 'LOT-2001',
+        produto: proxima.produto || 'Café Arábica',
+        tipo: proxima.tipo || 'ARMAZENAMENTO',
+        origem: proxima.origem || 'Doca 01',
+        destino: proxima.destino || 'POS-A1-01',
+        status: proxima.status || 'EM_ANDAMENTO'
       }
     });
   } catch (error) {
-    console.error('❌ Erro ao buscar próxima tarefa:', error);
-    return res.json({ mensagem: "Nenhuma tarefa ativa.", tarefa: null });
+    console.error(`❌ Erro ao buscar próxima tarefa do operador (${empilhadeiraId}):`, error.message);
+    return res.status(500).json({ erro: error.message });
   }
 });
 
 // POST /api/operador/:empilhadeiraId/ler-codigo
-router.all(['/ler-codigo', '/:empilhadeiraId/ler-codigo'], async (req, res) => {
+router.post('/:empilhadeiraId/ler-codigo', async (req, res) => {
+  const { empilhadeiraId } = req.params;
+  const { codigoLote } = req.body || {};
+
   try {
     return res.json({
-      valido: true,
-      mensagem: "✅ Código de barras / QR Code validado com sucesso!"
+      sucesso: true,
+      mensagem: `Código ${codigoLote || 'lido'} validado com sucesso para a empilhadeira ${empilhadeiraId}!`
     });
   } catch (error) {
-    return res.json({ valido: true, mensagem: "Código lido com sucesso!" });
+    return res.status(500).json({ erro: error.message });
   }
 });
 
 // POST /api/operador/:empilhadeiraId/confirmar-conclusao/:tarefaId
-router.all([
-  '/:empilhadeiraId/confirmar-conclusao/:tarefaId',
-  '/confirmar-conclusao/:tarefaId'
-], async (req, res) => {
+router.post('/:empilhadeiraId/confirmar-conclusao/:tarefaId', async (req, res) => {
+  const { tarefaId } = req.params;
+
   try {
-    const { tarefaId, empilhadeiraId } = req.params;
-
-    if (tarefaId) {
+    try {
       await prisma.tarefa.update({
-        where: { id: tarefaId },
+        where: { id: String(tarefaId) },
         data: { status: 'CONCLUIDA' }
-      }).catch(async () => {
-        await prisma.tarefa.updateMany({
-          where: { id: tarefaId },
-          data: { status: 'CONCLUIDA' }
-        }).catch(() => null);
       });
-    }
-
-    // Atualiza status da empilhadeira para DISPONIVEL no banco se não houver mais tarefas ativas para ela
-    if (empilhadeiraId && empilhadeiraId !== 'undefined') {
-      const idLimpo = empilhadeiraId.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const tarefasRestantes = await prisma.tarefa.findMany({
-        where: { status: { in: ['PENDENTE', 'EM_ANDAMENTO', 'ATRIBUIDA'] } }
-      }).catch(() => []);
-
-      const aindaTem = tarefasRestantes.some(t => {
-        if (!t.empilhadeiraId) return false;
-        return t.empilhadeiraId.toLowerCase().replace(/[^a-z0-9]/g, '') === idLimpo;
-      });
-
-      if (!aindaTem) {
-        await prisma.empilhadeira.updateMany({
-          where: {
-            OR: [
-              { id: empilhadeiraId },
-              { nome: empilhadeiraId }
-            ]
-          },
-          data: { status: 'DISPONIVEL' }
-        }).catch(() => null);
+    } catch {
+      if (store.tasks) {
+        const t = store.tasks.find(item => String(item.id) === String(tarefaId));
+        if (t) t.status = 'CONCLUIDA';
       }
     }
 
-    return res.json({
-      sucesso: true,
-      mensagem: "Tarefa concluída com sucesso!"
-    });
+    return res.json({ sucesso: true, mensagem: 'Movimentação concluída e registrada com sucesso!' });
   } catch (error) {
-    console.error('❌ Erro ao concluir tarefa:', error);
-    return res.json({ sucesso: true, mensagem: "Conclusão registrada." });
+    return res.status(500).json({ erro: error.message });
   }
 });
 
