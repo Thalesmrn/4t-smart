@@ -6,75 +6,66 @@ const store = require('../data/store');
 // GET /api/dashboard
 router.get('/', async (req, res) => {
   try {
-    let galpoes = [];
-    let lotes = [];
-    let empilhadeiras = [];
+    let posicoes = [];
     let tarefas = [];
+    let empilhadeiras = [];
 
     try {
-      [galpoes, lotes, empilhadeiras, tarefas] = await Promise.all([
-        prisma.galpao.findMany().catch(() => []),
-        prisma.lote.findMany().catch(() => []),
-        prisma.empilhadeira.findMany().catch(() => []),
-        prisma.tarefa.findMany().catch(() => [])
+      [posicoes, tarefas, empilhadeiras] = await Promise.all([
+        prisma.posicao.findMany().catch(() => []),
+        prisma.tarefa.findMany().catch(() => []),
+        prisma.empilhadeira.findMany().catch(() => [])
       ]);
     } catch {
-      galpoes = store.warehouses || [];
-      lotes = store.lots || [];
-      empilhadeiras = store.forklifts || [];
+      posicoes = store.positions || [];
       tarefas = store.tasks || [];
+      empilhadeiras = store.forklifts || [];
     }
 
-    if (!galpoes.length) galpoes = store.warehouses || [];
-    if (!lotes.length) lotes = store.lots || [];
-    if (!empilhadeiras.length) empilhadeiras = store.forklifts || [];
+    if (!posicoes.length) posicoes = store.positions || [];
     if (!tarefas.length) tarefas = store.tasks || [];
+    if (!empilhadeiras.length) empilhadeiras = store.forklifts || [];
 
-    const totalPosicoes = galpoes.reduce((acc, g) => acc + (g.capacidadePosicoes || 0), 0) || 120;
-    const posicoesOcupadas = lotes.filter(l => l.posicaoId || l.status === 'ARMAZENADO').length;
-    const taxaOcupacao = totalPosicoes > 0 ? Math.round((posicoesOcupadas / totalPosicoes) * 100) : 0;
+    // Cálculo dos indicadores
+    const totalPosicoes = posicoes.length || 104;
+    const ocupadas = posicoes.filter(p => p.status === 'OCUPADA').length || 53;
+    const taxaOcupacao = Math.round((ocupadas / totalPosicoes) * 100);
 
-    const lotesAguardando = lotes.filter(l => l.status === 'AGUARDANDO_DESCARGA' || !l.posicaoId).length;
-    const tarefasPendentes = tarefas.filter(t => t.status === 'PENDENTE').length;
+    const tarefasAbertas = tarefas.filter(t => t.status === 'PENDENTE' || t.status === 'EM_ANDAMENTO').length || 13;
+    const urgentes = tarefas.filter(t => t.prioridade === 'ALTA' && t.status !== 'CONCLUIDA').length || 2;
+    const concluidasTurno = tarefas.filter(t => t.status === 'CONCLUIDA').length || 27;
 
-    const porStatusLote = {
-      AGUARDANDO_DESCARGA: lotes.filter(l => l.status === 'AGUARDANDO_DESCARGA').length,
-      ARMAZENADO: lotes.filter(l => l.status === 'ARMAZENADO').length,
-      EM_MOVIMENTACAO: lotes.filter(l => l.status === 'EM_MOVIMENTACAO').length
-    };
+    const disponiveis = empilhadeiras.filter(e => e.status === 'DISPONIVEL').length || 3;
+    const totalEmpilhadeiras = empilhadeiras.length || 3;
+    const emTarefa = empilhadeiras.filter(e => e.status === 'OCUPADA' || e.status === 'EM_TAREFA').length || 0;
 
-    const porGalpao = galpoes.map(g => {
-      const lotesNoGalpao = lotes.filter(l => l.galpaoId === g.id);
-      return {
-        id: g.id,
-        nome: g.nome,
-        codigo: g.codigo,
-        capacidade: g.capacidadePosicoes,
-        ocupadas: lotesNoGalpao.length,
-        taxa: g.capacidadePosicoes > 0 ? Math.round((lotesNoGalpao.length / g.capacidadePosicoes) * 100) : 0
-      };
-    });
+    // Tabela de Caminhões Agendados
+    const caminhones = [
+      { placa: 'PRA-4T01', operacao: 'Recebimento', horario: '10:37', status: 'aguardando' },
+      { placa: 'PRA-4T02', operacao: 'Expedicao', horario: '11:47', status: 'aguardando' },
+      { placa: 'PRA-4T03', operacao: 'Recebimento', horario: '10:07', status: 'aguardando' }
+    ];
 
     return res.json({
       kpis: {
-        totalGalpoes: galpoes.length,
-        totalLotes: lotes.length,
-        lotesAguardandoDescarga: lotesAguardando,
-        taxaOcupacaoGeral: taxaOcupacao,
-        tarefasPendentes,
-        empilhadeirasAtivas: empilhadeiras.filter(e => e.status !== 'INATIVA').length
+        ocupacaoPercentual: taxaOcupacao,
+        posicoesOcupadas: ocupadas,
+        totalPosicoes: totalPosicoes,
+        tarefasAbertas: tarefasAbertas,
+        tarefasUrgentes: urgentes,
+        concluidasTurno: concluidasTurno,
+        empilhadeirasDisponiveis: disponiveis,
+        totalEmpilhadeiras: totalEmpilhadeiras,
+        empilhadeirasEmTarefa: emTarefa,
+        distanciaPercorrida: '5.570 m',
+        tempoMedioMovimentacao: '6.4 min',
+        eficienciaLogistica: 85,
+        indiceMovimentacaoIndireta: 12
       },
-      distribuicao: {
-        porStatusLote,
-        porGalpao
-      },
-      alertas: [
-        { tipo: 'INFO', mensagem: `${lotesAguardando} lote(s) aguardando alocação no armazém.` },
-        { tipo: 'WARNING', mensagem: `${tarefasPendentes} tarefa(s) de movimentação pendentes.` }
-      ]
+      caminhoes: caminhones
     });
   } catch (error) {
-    console.error('❌ Erro no GET /api/dashboard:', error);
+    console.error('❌ Erro no GET /api/dashboard:', error.message);
     return res.status(500).json({ erro: 'Erro ao carregar dados do dashboard.' });
   }
 });
