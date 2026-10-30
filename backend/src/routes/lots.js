@@ -35,7 +35,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /api/lotes (Cadastrar Lote Real no Supabase)
+// POST /api/lotes
 router.post('/', async (req, res) => {
   try {
     const body = req.body || {};
@@ -61,9 +61,9 @@ router.post('/', async (req, res) => {
           status: 'AGUARDANDO_DESCARGA'
         }
       });
-      console.log('✅ Lote salvo no Supabase com Sucesso:', novoLote);
+      console.log('✅ Lote salvo no Supabase:', novoLote);
     } catch (dbError) {
-      console.error('⚠️ Falha ao salvar no Supabase/Prisma, gravando em memória local:', dbError.message);
+      console.error('⚠️ Falha ao salvar no Supabase, usando memória local:', dbError.message);
       
       const id = `lot-${Date.now()}`;
       novoLote = {
@@ -84,7 +84,7 @@ router.post('/', async (req, res) => {
     return res.status(201).json(formatarLote(novoLote));
 
   } catch (error) {
-    console.error('❌ ERRO CRÍTICO NO CADASTRO DE LOTE:', error.message);
+    console.error('❌ ERRO NO CADASTRO DE LOTE:', error.message);
     return res.status(500).json({ erro: `Erro interno: ${error.message}` });
   }
 });
@@ -93,21 +93,17 @@ router.post('/', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    let deletado = false;
-
     try {
       await prisma.lote.delete({
         where: { id: String(id) }
       });
-      deletado = true;
       console.log(`✅ Lote ${id} excluído do Supabase.`);
     } catch (dbErr) {
-      console.warn(`⚠️ Erro Prisma no DELETE, tentando memória local:`, dbErr.message);
+      console.warn(`⚠️ Aviso Prisma no DELETE:`, dbErr.message);
     }
 
     if (store.lots) {
       store.lots = store.lots.filter(l => String(l.id) !== String(id));
-      deletado = true;
     }
 
     return res.json({ mensagem: 'Lote excluído com sucesso!', id });
