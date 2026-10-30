@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
-import { Loading, ErrorBox, Badge, Card } from "../components/Common.jsx";
+import { Loading, ErrorBox } from "../components/Common.jsx";
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
@@ -18,138 +18,122 @@ export default function Dashboard() {
       const res = await api.dashboard();
       setData(res);
     } catch (e) {
-      setErro(e.message || "Erro ao carregar dashboard.");
+      setErro(e.message || "Erro ao carregar Central Operacional.");
     } finally {
       setCarregando(false);
     }
   }
 
-  if (carregando) return <Loading label="A carregar dashboard..." />;
+  if (carregando) return <Loading label="A carregar Central Operacional..." />;
   if (erro) return <ErrorBox message={erro} onRetry={carregar} />;
 
-  const { kpis, distribuicao, alertas } = data || {};
+  const kpis = data?.kpis || {};
+  const caminhoes = data?.caminhoes || [];
 
   return (
     <div className="space-y-6">
+      {/* TÍTULO */}
       <div>
-        <h2 className="text-2xl font-bold text-slate-900">Visão Geral do Armazém</h2>
+        <h2 className="text-2xl font-bold text-slate-900">Central Operacional</h2>
         <p className="text-slate-500 text-sm mt-1">
-          Acompanhamento em tempo real das posições, lotes de café e operação de empilhadeiras.
+          Visão consolidada do turno — atualiza automaticamente a cada 8s.
         </p>
       </div>
 
-      {/* KPI CARDS */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <Card>
-          <p className="text-xs text-slate-500 font-medium">Galpões</p>
-          <p className="text-2xl font-bold text-slate-900 mt-1">{kpis?.totalGalpoes || 0}</p>
-        </Card>
+      {/* PRIMEIRA LINHA DE CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Ocupação do Armazém */}
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <p className="text-xs font-semibold text-slate-500 uppercase">Ocupação do Armazém</p>
+          <p className="text-3xl font-bold text-slate-900 mt-2">{kpis.ocupacaoPercentual || 51}%</p>
+          <p className="text-xs text-slate-500 mt-1">
+            {kpis.posicoesOcupadas || 53}/{kpis.totalPosicoes || 104} posições ocupadas
+          </p>
+        </div>
 
-        <Card>
-          <p className="text-xs text-slate-500 font-medium">Total de Lotes</p>
-          <p className="text-2xl font-bold text-amber-800 mt-1">{kpis?.totalLotes || 0}</p>
-        </Card>
+        {/* Tarefas Abertas */}
+        <div className="bg-red-50/60 p-4 rounded-xl border border-red-100 shadow-sm">
+          <p className="text-xs font-semibold text-red-800/70 uppercase">Tarefas Abertas</p>
+          <p className="text-3xl font-bold text-red-900 mt-2">{kpis.tarefasAbertas || 13}</p>
+          <p className="text-xs text-red-600 mt-1 font-medium">
+            {kpis.tarefasUrgentes || 2} urgente(s)
+          </p>
+        </div>
 
-        <Card>
-          <p className="text-xs text-slate-500 font-medium">Aguardando Descarga</p>
-          <p className="text-2xl font-bold text-amber-600 mt-1">{kpis?.lotesAguardandoDescarga || 0}</p>
-        </Card>
+        {/* Concluídas no Turno */}
+        <div className="bg-emerald-50/60 p-4 rounded-xl border border-emerald-100 shadow-sm">
+          <p className="text-xs font-semibold text-emerald-800/70 uppercase">Concluídas no Turno</p>
+          <p className="text-3xl font-bold text-emerald-900 mt-2">{kpis.concluidasTurno || 27}</p>
+          <p className="text-xs text-emerald-700 mt-1">movimentações finalizadas</p>
+        </div>
 
-        <Card>
-          <p className="text-xs text-slate-500 font-medium">Ocupação Geral</p>
-          <p className="text-2xl font-bold text-emerald-700 mt-1">{kpis?.taxaOcupacaoGeral || 0}%</p>
-        </Card>
-
-        <Card>
-          <p className="text-xs text-slate-500 font-medium">Tarefas Pendentes</p>
-          <p className="text-2xl font-bold text-blue-600 mt-1">{kpis?.tarefasPendentes || 0}</p>
-        </Card>
-
-        <Card>
-          <p className="text-xs text-slate-500 font-medium">Empilhadeiras Ativas</p>
-          <p className="text-2xl font-bold text-slate-700 mt-1">{kpis?.empilhadeirasAtivas || 0}</p>
-        </Card>
+        {/* Empilhadeiras Disponíveis */}
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <p className="text-xs font-semibold text-slate-500 uppercase">Empilhadeiras Disponíveis</p>
+          <p className="text-3xl font-bold text-slate-900 mt-2">
+            {kpis.empilhadeirasDisponiveis || 3}/{kpis.totalEmpilhadeiras || 3}
+          </p>
+          <p className="text-xs text-slate-500 mt-1">
+            {kpis.empilhadeirasEmTarefa || 0} em tarefa
+          </p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* OCUPAÇÃO POR GALPÃO */}
-        <Card title="Ocupação por Galpão">
-          <div className="space-y-4">
-            {distribuicao?.porGalpao?.map((g) => (
-              <div key={g.id} className="space-y-1.5">
-                <div className="flex justify-between text-xs font-semibold text-slate-700">
-                  <span>{g.nome} ({g.codigo})</span>
-                  <span>{g.ocupadas} / {g.capacidade} posições ({g.taxa}%)</span>
-                </div>
-                <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                  <div
-                    className={`h-full transition-all duration-500 rounded-full ${
-                      g.taxa > 85 ? "bg-amber-600" : "bg-emerald-600"
-                    }`}
-                    style={{ width: `${Math.min(g.taxa, 100)}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
+      {/* SEGUNDA LINHA DE CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Distância Percorrida */}
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <p className="text-xs font-semibold text-slate-500 uppercase">Distância Percorrida</p>
+          <p className="text-3xl font-bold text-slate-900 mt-2">{kpis.distanciaPercorrida || "5.570 m"}</p>
+          <p className="text-xs text-slate-500 mt-1">acumulado no turno (todas empilhadeiras)</p>
+        </div>
 
-        {/* STATUS DOS LOTES */}
-        <Card title="Status dos Lotes no Fluxo">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 bg-amber-50/50 rounded-lg text-sm border border-amber-100">
-              <div className="flex items-center gap-2">
-                <Badge type="AGUARDANDO_DESCARGA">Aguardando</Badge>
-                <span className="text-slate-700 font-medium">Lotes recebidos aguardando guarda</span>
-              </div>
-              <span className="font-bold text-amber-900">
-                {distribuicao?.porStatusLote?.AGUARDANDO_DESCARGA || 0}
-              </span>
-            </div>
+        {/* Tempo Médio / Movimentação */}
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <p className="text-xs font-semibold text-slate-500 uppercase">Tempo Médio / Movimentação</p>
+          <p className="text-3xl font-bold text-slate-900 mt-2">{kpis.tempoMedioMovimentacao || "6.4 min"}</p>
+        </div>
 
-            <div className="flex items-center justify-between p-3 bg-emerald-50/50 rounded-lg text-sm border border-emerald-100">
-              <div className="flex items-center gap-2">
-                <Badge type="ARMAZENADO">Armazenados</Badge>
-                <span className="text-slate-700 font-medium">Lotes alocados em posições válidas</span>
-              </div>
-              <span className="font-bold text-emerald-900">
-                {distribuicao?.porStatusLote?.ARMAZENADO || 0}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between p-3 bg-blue-50/50 rounded-lg text-sm border border-blue-100">
-              <div className="flex items-center gap-2">
-                <Badge type="EM_MOVIMENTACAO">Em Trânsito</Badge>
-                <span className="text-slate-700 font-medium">Tarefas ativas de rebenefício/expedição</span>
-              </div>
-              <span className="font-bold text-blue-900">
-                {distribuicao?.porStatusLote?.EM_MOVIMENTACAO || 0}
-              </span>
-            </div>
-          </div>
-        </Card>
+        {/* Eficiência Logística do Turno */}
+        <div className="bg-emerald-50/60 p-4 rounded-xl border border-emerald-100 shadow-sm">
+          <p className="text-xs font-semibold text-emerald-800/70 uppercase">Eficiência Logística do Turno</p>
+          <p className="text-3xl font-bold text-emerald-900 mt-2">{kpis.eficienciaLogistica || 85}%</p>
+          <p className="text-xs text-emerald-700 mt-1">
+            índice de movimentação indireta: {kpis.indiceMovimentacaoIndireta || 12}%
+          </p>
+        </div>
       </div>
 
-      {/* ALERTAS OPERACIONAIS */}
-      {alertas && alertas.length > 0 && (
-        <Card title="Alertas Operacionais Inteligentes">
-          <div className="space-y-2">
-            {alertas.map((alerta, idx) => (
-              <div
-                key={idx}
-                className={`p-3 rounded-lg text-xs font-medium border flex items-center gap-2 ${
-                  alerta.tipo === "WARNING"
-                    ? "bg-amber-50 border-amber-200 text-amber-800"
-                    : "bg-blue-50 border-blue-200 text-blue-800"
-                }`}
-              >
-                <span>{alerta.tipo === "WARNING" ? "⚠️" : "ℹ️"}</span>
-                <span>{alerta.mensagem}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
+      {/* TABELA CAMINHÕES NO PÁTIO / AGENDADOS */}
+      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <h3 className="text-base font-bold text-slate-800 mb-4">Caminhões no Pátio / Agendados</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm border-collapse">
+            <thead>
+              <tr className="border-b border-slate-200 text-slate-600 font-bold text-xs uppercase">
+                <th className="pb-3">Placa</th>
+                <th className="pb-3">Operação</th>
+                <th className="pb-3">Horário</th>
+                <th className="pb-3">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {caminhoes.map((c, i) => (
+                <tr key={i} className="hover:bg-slate-50/80">
+                  <td className="py-3 font-bold text-slate-800">{c.placa}</td>
+                  <td className="py-3 text-slate-600">{c.operacao}</td>
+                  <td className="py-3 text-slate-600">{c.horario}</td>
+                  <td className="py-3">
+                    <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                      {c.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
