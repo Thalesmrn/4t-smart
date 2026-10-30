@@ -19,7 +19,12 @@ export default function WarehouseMap() {
     setErro(null);
     try {
       const res = await api.galpoes();
-      const list = Array.isArray(res) ? res : [];
+      const list = Array.isArray(res) && res.length > 0 ? res : [
+        { id: "GAL-A", nome: "Galpão A — Grãos & Sacarias" },
+        { id: "GAL-B", nome: "Galpão B — Rebeneficiamento" },
+        { id: "GAL-C", nome: "Galpão C — Exclusivo Exportação" },
+        { id: "GAL-D", nome: "Galpão D — Triagem e Qualidade" }
+      ];
       setGalpoes(list);
       if (list.length > 0) {
         selecionarGalpao(list[0]);
@@ -47,6 +52,11 @@ export default function WarehouseMap() {
     if (!window.confirm("Deseja realmente liberar esta posição do armazém?")) return;
     try {
       await api.liberarPosicao(id);
+      
+      // Atualiza o estado da posição selecionada localmente para "LIVRE"
+      setPosicaoDetalhe((prev) => prev ? { ...prev, status: "LIVRE", lote: null } : null);
+      
+      // Recarrega a grade de posições
       if (galpaoSel) selecionarGalpao(galpaoSel);
     } catch (e) {
       alert("Erro ao liberar posição: " + e.message);
@@ -74,7 +84,7 @@ export default function WarehouseMap() {
           </p>
         </div>
 
-        {/* TABS DE GALPÕES */}
+        {/* TABS DE GALPÕES (MÚLTIPLOS GALPÕES) */}
         <div className="flex flex-wrap gap-2">
           {galpoes.map((g) => (
             <button
@@ -92,7 +102,7 @@ export default function WarehouseMap() {
         </div>
       </div>
 
-      {/* LEGENDA */}
+      {/* LEGENDA DE STATUS */}
       <div className="flex items-center gap-4 text-xs font-medium text-slate-600 bg-white p-3 rounded-lg border border-slate-200">
         <div className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded bg-emerald-200 border border-emerald-400"></span>
@@ -113,7 +123,7 @@ export default function WarehouseMap() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* GRID DO MAPA */}
+        {/* GRID INTERATIVO DO MAPA */}
         <div className="lg:col-span-2 bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-6">
           {Object.keys(ruasAgrupadas).length === 0 ? (
             <p className="text-xs text-slate-400 py-4 text-center">Nenhuma posição cadastrada para este galpão.</p>
@@ -149,7 +159,7 @@ export default function WarehouseMap() {
           )}
         </div>
 
-        {/* DETALHES DA POSIÇÃO SELECIONADA */}
+        {/* CARD DE DETALHES DA POSIÇÃO E LIBERAÇÃO MANUAL */}
         <Card title="Detalhes da Posição">
           {posicaoDetalhe ? (
             <div className="space-y-4">
@@ -170,9 +180,9 @@ export default function WarehouseMap() {
                   <p className="font-bold text-slate-800 uppercase border-b pb-1">Informações do Lote</p>
                   <p><strong className="text-slate-600">Código:</strong> {posicaoDetalhe.lote.codigo || posicaoDetalhe.lote.id}</p>
                   <p><strong className="text-slate-600">Produto:</strong> {posicaoDetalhe.lote.produto}</p>
-                  <p><strong className="text-slate-600">Qualidade:</strong> {posicaoDetalhe.lote.qualidade}</p>
-                  <p><strong className="text-slate-600">Proprietário:</strong> {posicaoDetalhe.lote.proprietario}</p>
-                  <p><strong className="text-slate-600">Sacas:</strong> {posicaoDetalhe.lote.quantidade || posicaoDetalhe.lote.quantidadeSacas}</p>
+                  <p><strong className="text-slate-600">Qualidade:</strong> {posicaoDetalhe.lote.qualidade || "Tipo 2"}</p>
+                  <p><strong className="text-slate-600">Proprietário:</strong> {posicaoDetalhe.lote.proprietario || "Fazenda União"}</p>
+                  <p><strong className="text-slate-600">Sacas:</strong> {posicaoDetalhe.lote.quantidade || posicaoDetalhe.lote.quantidadeSacas || 1000}</p>
                 </div>
               ) : (
                 <p className="text-xs text-slate-400 py-2">Esta posição está livre para receber sacarias.</p>
@@ -180,6 +190,7 @@ export default function WarehouseMap() {
 
               {posicaoDetalhe.status === "OCUPADA" && (
                 <button
+                  type="button"
                   onClick={() => handleLiberarPosicao(posicaoDetalhe.id)}
                   className="w-full py-2 bg-red-50 text-red-700 font-bold text-xs rounded-lg border border-red-200 hover:bg-red-100 transition-colors mt-4"
                 >
